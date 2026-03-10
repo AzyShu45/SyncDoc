@@ -9,21 +9,19 @@ import { DocumentCard } from "@/components/dashboard/DocumentCard"
 import { useRouter } from "next/navigation"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useUser, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { signOut } from "firebase/auth"
-import { useAuth } from "@/firebase"
 
 export default function Dashboard() {
   const router = useRouter()
-  const { firestore } = useFirestore() || {}
-  const { auth } = useAuth() || {}
+  const firestore = useFirestore()
+  const auth = useAuth()
   const { user, isUserLoading } = useUser()
   const [search, setSearch] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
-  // Explicit redirect if not logged in
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/")
@@ -80,9 +78,6 @@ export default function Dashboard() {
     (d.title || "").toLowerCase().includes(search.toLowerCase())
   )
 
-  // Show loading while auth OR documents are being initially fetched
-  // We check docsLoading && !documents to ensure we show a loader on first load,
-  // but not necessarily when the list updates in real-time later.
   if (isUserLoading || (docsLoading && !documents && !docsError)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -94,7 +89,6 @@ export default function Dashboard() {
     )
   }
 
-  // Final safety check to prevent rendering dashboard content without a user
   if (!user) {
     return null
   }

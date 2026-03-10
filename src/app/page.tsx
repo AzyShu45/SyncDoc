@@ -17,8 +17,8 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { auth } = useAuth() || {}
-  const { firestore } = useFirestore() || {}
+  const auth = useAuth()
+  const firestore = useFirestore()
   const { user, isUserLoading } = useUser()
   const { toast } = useToast()
   
@@ -28,7 +28,6 @@ export default function LoginPage() {
   const [socialLoading, setSocialLoading] = useState(false)
 
   useEffect(() => {
-    // If user is already logged in and we're not checking anymore, go to dashboard
     if (!isUserLoading && user) {
       router.push("/dashboard")
     }
@@ -41,7 +40,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      // Redirection will be handled by the useEffect
+      router.push("/dashboard")
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -57,30 +56,28 @@ export default function LoginPage() {
     setSocialLoading(true)
     try {
       const provider = new GoogleAuthProvider()
-      // Force account selection so users don't get stuck with a previously used account
       provider.setCustomParameters({
         prompt: 'select_account'
       })
       
       const result = await signInWithPopup(auth, provider)
-      const user = result.user
+      const loggedInUser = result.user
 
-      // Check if user exists in Firestore, if not, create profile
-      const userRef = doc(firestore, "users", user.uid)
+      const userRef = doc(firestore, "users", loggedInUser.uid)
       const userSnap = await getDoc(userRef)
       
       if (!userSnap.exists()) {
         setDocumentNonBlocking(userRef, {
-          id: user.uid,
-          email: user.email,
-          name: user.displayName || user.email?.split('@')[0] || "User",
-          photoURL: user.photoURL,
+          id: loggedInUser.uid,
+          email: loggedInUser.email,
+          name: loggedInUser.displayName || loggedInUser.email?.split('@')[0] || "User",
+          photoURL: loggedInUser.photoURL,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }, { merge: true })
       }
       
-      // router.push("/dashboard") is handled by the useEffect
+      router.push("/dashboard")
     } catch (error: any) {
       console.error("Google Login Error:", error)
       toast({
@@ -92,7 +89,6 @@ export default function LoginPage() {
     }
   }
 
-  // Show a clean loader while checking auth state
   if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -104,7 +100,6 @@ export default function LoginPage() {
     )
   }
 
-  // If we have a user, don't show the login form (redirecting)
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

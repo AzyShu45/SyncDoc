@@ -17,8 +17,8 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { auth } = useAuth() || {}
-  const { firestore } = useFirestore() || {}
+  const auth = useAuth()
+  const firestore = useFirestore()
   const { user, isUserLoading } = useUser()
   const { toast } = useToast()
   
@@ -42,10 +42,8 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const newUser = userCredential.user
 
-      // Update Firebase Auth profile
       await updateProfile(newUser, { displayName: name })
 
-      // Create user profile in Firestore
       const userRef = doc(firestore, "users", newUser.uid)
       setDocumentNonBlocking(userRef, {
         id: newUser.uid,
@@ -55,7 +53,7 @@ export default function RegisterPage() {
         updatedAt: serverTimestamp(),
       }, { merge: true })
 
-      // Redirection handled by useEffect
+      router.push("/dashboard")
     } catch (error: any) {
       toast({
         variant: "destructive",

@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { 
@@ -25,38 +25,33 @@ import { Textarea } from "@/components/ui/textarea"
 export default function DocumentWorkspace() {
   const { id } = useParams()
   const router = useRouter()
-  const { firestore } = useFirestore() || {}
+  const firestore = useFirestore()
   const { user, isUserLoading } = useUser()
   
-  // Local state for immediate UI updates
   const [localTitle, setLocalTitle] = useState("")
   const [localContent, setLocalContent] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/")
     }
   }, [user, isUserLoading, router])
 
-  // Fetch real document
   const docRef = useMemoFirebase(() => {
     if (!firestore || !id) return null
     return doc(firestore, "documents", id as string)
   }, [firestore, id])
   const { data: document, isLoading: docLoading } = useDoc(docRef)
 
-  // Initialize local state from document data
   useEffect(() => {
     if (document) {
       setLocalTitle(document.title || "")
       setLocalContent(document.content || "")
     }
-  }, [document?.id]) // Only reset when document ID changes
+  }, [document?.id])
 
-  // Fetch real messages
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !id) return null
     return query(
@@ -96,7 +91,6 @@ export default function DocumentWorkspace() {
       updatedAt: serverTimestamp()
     })
     
-    // Simple visual debounce for the "Saving" indicator
     const timeoutId = setTimeout(() => setIsSaving(false), 800)
     return () => clearTimeout(timeoutId)
   }
@@ -138,7 +132,6 @@ export default function DocumentWorkspace() {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
-      {/* Workspace Header */}
       <header className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-4 flex-1">
           <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")}>
@@ -196,9 +189,7 @@ export default function DocumentWorkspace() {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Document Pane */}
         <div className="flex-1 flex flex-col bg-background overflow-hidden relative">
           {isSaving && (
             <div className="absolute top-4 right-8 z-10 animate-in fade-in slide-in-from-right-2">
@@ -222,7 +213,6 @@ export default function DocumentWorkspace() {
           </div>
         </div>
 
-        {/* Right Sidebar */}
         <div 
           className={`transition-all duration-300 border-l bg-card overflow-hidden shrink-0 ${
             rightPanel !== 'none' ? 'w-80 lg:w-96' : 'w-0'
