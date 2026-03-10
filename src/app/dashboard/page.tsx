@@ -37,7 +37,7 @@ export default function Dashboard() {
     )
   }, [firestore, user?.uid])
 
-  const { data: documents, isLoading: docsLoading } = useCollection(documentsQuery)
+  const { data: documents, isLoading: docsLoading, error: docsError } = useCollection(documentsQuery)
 
   const createNewDoc = () => {
     if (!firestore || !user || isCreating) return
@@ -59,8 +59,6 @@ export default function Dashboard() {
     }
 
     setDocumentNonBlocking(newDocRef, initialData, { merge: true })
-    
-    // Immediate navigation for better UX, Firestore handles the background write
     router.push(`/documents/${docId}`)
   }
 
@@ -73,7 +71,6 @@ export default function Dashboard() {
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth)
-      router.push("/")
     }
   }
 
@@ -81,9 +78,9 @@ export default function Dashboard() {
     (d.title || "").toLowerCase().includes(search.toLowerCase())
   )
 
-  if (isUserLoading || (docsLoading && !documents)) {
+  if (isUserLoading || (docsLoading && !documents && !docsError)) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-10 w-10 text-primary animate-spin" />
           <p className="text-muted-foreground font-medium">Loading workspace...</p>
@@ -178,7 +175,12 @@ export default function Dashboard() {
            </div>
         </div>
 
-        {docsLoading && !documents ? (
+        {docsError ? (
+          <div className="p-8 text-center bg-destructive/10 rounded-xl border border-destructive/20">
+            <p className="text-destructive font-bold">Error loading workspace</p>
+            <p className="text-sm text-muted-foreground">Please try refreshing the page.</p>
+          </div>
+        ) : docsLoading && !documents ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />

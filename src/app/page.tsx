@@ -40,7 +40,6 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      // Redirect handled by useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -56,10 +55,14 @@ export default function LoginPage() {
     setSocialLoading(true)
     try {
       const provider = new GoogleAuthProvider()
+      // Force account selection so users don't get stuck with a previously used account
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      })
+      
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
-      // Check if user exists in Firestore, if not create profile
       const userRef = doc(firestore, "users", user.uid)
       const userSnap = await getDoc(userRef)
       
@@ -72,7 +75,6 @@ export default function LoginPage() {
           updatedAt: serverTimestamp(),
         }, { merge: true })
       }
-      // Redirect handled by useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
