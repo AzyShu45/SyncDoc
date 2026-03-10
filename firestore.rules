@@ -17,7 +17,6 @@ service cloud.firestore {
     }
 
     // Robust helper to check if the user is a member of the document
-    // We use uppercase role strings to match application constants
     function isMember(docData) {
       return isSignedIn() && 
              docData != null && 
@@ -31,20 +30,19 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Users can see other profile metadata but only manage their own
       allow get: if isSignedIn();
       allow list: if isOwner(userId);
       allow create, update, delete: if isOwner(userId);
     }
 
     match /documents/{documentId} {
-      // Allow creation if the user sets themselves as the OWNER in the members map
+      // Allow creation if the user sets themselves as the OWNER
       allow create: if isSignedIn() && 
                     request.resource.data.members[request.auth.uid] == 'OWNER' &&
                     request.resource.data.ownerId == request.auth.uid;
 
       // Access based on membership in the 'members' map
-      // This allows both specific document 'get' and collection 'list' queries filtered by membership
+      // Using 'read' which covers both 'get' and 'list'
       allow read: if isMember(resource.data) || (resource == null && isSignedIn());
       
       // Allow updates if user is OWNER or EDITOR
@@ -54,21 +52,19 @@ service cloud.firestore {
       allow delete: if hasRole(resource.data, ['OWNER']);
 
       match /messages/{messageId} {
-        // Use a parent check to ensure access to nested resources
-        allow read: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] != null;
-        allow create: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] in ['OWNER', 'EDITOR'];
+        // Robust sub-collection check using parent document path
+        allow read: if isSignedIn() && isMember(get(/databases/$(database)/documents/documents/$(documentId)).data);
+        allow create: if isSignedIn() && hasRole(get(/databases/$(database)/documents/documents/$(documentId)).data, ['OWNER', 'EDITOR']);
         allow update, delete: if false;
       }
 
       match /files/{fileId} {
-        allow read: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] != null;
-        allow write: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] in ['OWNER', 'EDITOR'];
+        allow read: if isSignedIn() && isMember(get(/databases/$(database)/documents/documents/$(documentId)).data);
+        allow write: if isSignedIn() && hasRole(get(/databases/$(database)/documents/documents/$(documentId)).data, ['OWNER', 'EDITOR']);
       }
     }
 
     match /permissions/{permissionId} {
-      // In a real app, this would be restricted to the document owner
-      // Permissive for prototype collaboration
       allow read, write: if isSignedIn();
     }
   }
