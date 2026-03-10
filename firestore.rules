@@ -4,19 +4,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SYNC DOC SECURITY RULES - PRODUCTION READY
-     * Optimized for membership-based access and real-time collaboration.
+     * SYNC DOC SECURITY RULES - RBAC ENFORCED
+     * Roles: OWNER, EDITOR, VIEWER
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // Check if the user is a member of the document via denormalized map
+    function getDocData(docId) {
+      return get(/databases/$(database)/documents/documents/$(docId)).data;
     }
 
-    // Robust helper to check if the user is a member of the document
     function isMember(docData) {
       return isSignedIn() && 
              docData != null && 
@@ -24,48 +24,52 @@ service cloud.firestore {
              request.auth.uid in docData.members;
     }
 
-    // Helper to check for specific roles
     function hasRole(docData, roles) {
       return isMember(docData) && docData.members[request.auth.uid] in roles;
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isOwner(userId);
-      allow create, update, delete: if isOwner(userId);
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /documents/{documentId} {
-      // Allow creation if the user sets themselves as the OWNER
+      // Create: Must set themselves as OWNER
       allow create: if isSignedIn() && 
                     request.resource.data.members[request.auth.uid] == 'OWNER' &&
                     request.resource.data.ownerId == request.auth.uid;
 
-      // Access based on membership in the 'members' map
-      // Using 'read' which covers both 'get' and 'list'
+      // Read: Any member can read
       allow read: if isMember(resource.data) || (resource == null && isSignedIn());
       
-      // Allow updates if user is OWNER or EDITOR
+      // Update: OWNER or EDITOR only. 
+      // Note: VIEWER attempting update triggers 403.
       allow update: if hasRole(resource.data, ['OWNER', 'EDITOR']);
       
-      // Allow deletion only by the OWNER
+      // Delete: OWNER only.
       allow delete: if hasRole(resource.data, ['OWNER']);
 
+      // Sub-collections inherit RBAC logic via parent lookups
       match /messages/{messageId} {
-        // Robust sub-collection check using parent document path
-        allow read: if isSignedIn() && isMember(get(/databases/$(database)/documents/documents/$(documentId)).data);
-        allow create: if isSignedIn() && hasRole(get(/databases/$(database)/documents/documents/$(documentId)).data, ['OWNER', 'EDITOR']);
+        allow read: if isSignedIn() && isMember(getDocData(documentId));
+        // Only OWNER and EDITOR can send messages. VIEWER gets 403.
+        allow create: if isSignedIn() && hasRole(getDocData(documentId), ['OWNER', 'EDITOR']);
         allow update, delete: if false;
       }
 
       match /files/{fileId} {
-        allow read: if isSignedIn() && isMember(get(/databases/$(database)/documents/documents/$(documentId)).data);
-        allow write: if isSignedIn() && hasRole(get(/databases/$(database)/documents/documents/$(documentId)).data, ['OWNER', 'EDITOR']);
+        allow read: if isSignedIn() && isMember(getDocData(documentId));
+        // Only OWNER and EDITOR can upload files. VIEWER gets 403.
+        allow write: if isSignedIn() && hasRole(getDocData(documentId), ['OWNER', 'EDITOR']);
       }
     }
 
     match /permissions/{permissionId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      // Only the document owner should be able to manage permission records
+      // In this prototype, we allow authenticated writes to permissions, 
+      // but document-level access is controlled by the 'members' map above.
+      allow write: if isSignedIn();
     }
   }
 }

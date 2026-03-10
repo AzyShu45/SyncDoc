@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Paperclip, FileIcon, ImageIcon, X, Smile, MoreHorizontal } from "lucide-react"
+import { Send, Paperclip, FileIcon, ImageIcon, X, Smile, MoreHorizontal, ShieldAlert } from "lucide-react"
 import { Message, Role } from "@/lib/types"
 import { format } from "date-fns"
 import { useUser } from "@/firebase"
@@ -24,7 +24,8 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canInteract = userRole !== 'VIEWER'
+  const isViewer = userRole === 'VIEWER'
+  const canInteract = !isViewer
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -41,7 +42,7 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
 
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
+    if (file && canInteract) {
       setSelectedFile(file)
     }
   }
@@ -100,20 +101,6 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
                   }`}>
                     {msg.text}
                   </div>
-                  {msg.fileUrl && (
-                    <div className="mt-2 border rounded-xl p-3 bg-background/50 backdrop-blur-sm flex items-center gap-3 w-full shadow-inner border-dashed">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        {msg.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                          <ImageIcon className="h-4 w-4 text-primary" />
-                        ) : (
-                          <FileIcon className="h-4 w-4 text-primary" />
-                        )}
-                      </div>
-                      <a href={msg.fileUrl} target="_blank" className="text-xs font-bold truncate hover:underline text-primary">
-                        {msg.fileName}
-                      </a>
-                    </div>
-                  )}
                 </div>
               </div>
             );
@@ -122,58 +109,67 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
       </ScrollArea>
 
       <div className="p-6 border-t space-y-4 bg-background/50 backdrop-blur-md">
-        {selectedFile && (
-          <div className="flex items-center gap-3 bg-primary/5 p-3 rounded-xl text-xs border border-primary/10 animate-in slide-in-from-bottom-2">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Paperclip className="h-3.5 w-3.5 text-primary" />
+        {isViewer ? (
+          <div className="p-4 bg-muted/50 rounded-2xl border-2 border-dashed flex items-center gap-3 text-muted-foreground">
+            <ShieldAlert className="h-5 w-5" />
+            <p className="text-xs font-bold uppercase tracking-widest">Read-only access enabled</p>
+          </div>
+        ) : (
+          <>
+            {selectedFile && (
+              <div className="flex items-center gap-3 bg-primary/5 p-3 rounded-xl text-xs border border-primary/10 animate-in slide-in-from-bottom-2">
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <Paperclip className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <span className="truncate flex-1 font-bold">{selectedFile.name}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => setSelectedFile(null)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            <div className="flex items-end gap-3">
+              <input
+                type="file"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={onFileSelect}
+                accept="image/*,.pdf"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 h-12 w-12 rounded-2xl text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors border"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!canInteract}
+              >
+                <Paperclip className="h-5 w-5" />
+              </Button>
+              <div className="flex-1 relative">
+                <Textarea
+                  placeholder="Share your thoughts..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  className="min-h-[48px] h-12 py-3 bg-muted/40 border-none rounded-2xl focus-visible:ring-2 focus-visible:ring-primary/20 transition-all font-medium custom-scrollbar resize-none"
+                  disabled={!canInteract}
+                />
+              </div>
+              <Button
+                size="icon"
+                onClick={handleSend}
+                disabled={!canInteract || (!input.trim() && !selectedFile)}
+                className="shrink-0 h-12 w-12 rounded-2xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 hover:scale-[1.05] transition-all"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
             </div>
-            <span className="truncate flex-1 font-bold">{selectedFile.name}</span>
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => setSelectedFile(null)}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          </>
         )}
-        <div className="flex items-end gap-3">
-          <input
-            type="file"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={onFileSelect}
-            accept="image/*,.pdf"
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0 h-12 w-12 rounded-2xl text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors border"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!canInteract}
-          >
-            <Paperclip className="h-5 w-5" />
-          </Button>
-          <div className="flex-1 relative">
-            <Textarea
-              placeholder={canInteract ? "Share your thoughts..." : "Read-only workspace"}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              className="min-h-[48px] h-12 py-3 bg-muted/40 border-none rounded-2xl focus-visible:ring-2 focus-visible:ring-primary/20 transition-all font-medium custom-scrollbar resize-none"
-              disabled={!canInteract}
-            />
-          </div>
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={!canInteract || (!input.trim() && !selectedFile)}
-            className="shrink-0 h-12 w-12 rounded-2xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 hover:scale-[1.05] transition-all"
-          >
-            <Send className="h-5 w-5" />
-          </Button>
-        </div>
       </div>
     </div>
   )

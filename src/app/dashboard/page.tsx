@@ -11,8 +11,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useUser, useCollection, useMemoFirebase, useAuth } from "@/firebase"
 import { collection, query, where, serverTimestamp, doc, orderBy } from "firebase/firestore"
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { signOut } from "firebase/auth"
+import { ShareDialog } from "@/components/workspace/ShareDialog"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -22,6 +23,8 @@ export default function Dashboard() {
   const [search, setSearch] = useState("")
   const [isCreating, setIsCreating] = useState(false)
   const [view, setView] = useState<'grid' | 'list'>('grid')
+  
+  const [shareDocId, setShareDocId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -31,8 +34,6 @@ export default function Dashboard() {
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null
-    // Membership query that aligns exactly with security rules
-    // Using simple query structure to avoid indexing issues for prototype
     return query(
       collection(firestore, "documents"),
       where(`members.${user.uid}`, "in", ["OWNER", "EDITOR", "VIEWER"])
@@ -70,6 +71,15 @@ export default function Dashboard() {
     deleteDocumentNonBlocking(docRef)
   }
 
+  const handleRename = (id: string, newTitle: string) => {
+    if (!firestore) return
+    const docRef = doc(firestore, "documents", id)
+    updateDocumentNonBlocking(docRef, { 
+      title: newTitle,
+      updatedAt: serverTimestamp()
+    })
+  }
+
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth)
@@ -77,7 +87,6 @@ export default function Dashboard() {
     }
   }
 
-  // Client-side filtering and sorting for the prototype
   const filteredDocs = (documents || [])
     .filter(d => (d.title || "").toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
@@ -85,6 +94,8 @@ export default function Dashboard() {
       const dateB = b.updatedAt?.toDate?.() || new Date(b.updatedAt || 0)
       return dateB.getTime() - dateA.getTime()
     })
+
+  const sharingDoc = documents?.find(d => d.id === shareDocId)
 
   if (isUserLoading || (docsLoading && !documents && !docsError)) {
     return (
@@ -198,12 +209,6 @@ export default function Dashboard() {
                <List className="h-4 w-4" /> List
              </Button>
            </div>
-
-           <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl font-bold h-10 border-2">
-                <Filter className="h-4 w-4" /> Filter
-              </Button>
-           </div>
         </div>
 
         {docsError ? (
@@ -219,7 +224,8 @@ export default function Dashboard() {
                 key={doc.id} 
                 doc={doc as any} 
                 onDelete={handleDelete}
-                onShare={() => {}}
+                onRename={handleRename}
+                onShare={(id) => setShareDocId(id)}
               />
             ))}
           </div>
@@ -241,6 +247,16 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {shareDocId && sharingDoc && (
+        <ShareDialog 
+          isOpen={true}
+          onClose={() => setShareDocId(null)}
+          documentId={shareDocId}
+          currentMembers={sharingDoc.members || {}}
+          ownerId={sharingDoc.ownerId || ""}
+        />
+      )}
     </div>
   )
 }
