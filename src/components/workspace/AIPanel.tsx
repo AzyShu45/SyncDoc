@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -50,7 +49,7 @@ export function AIPanel({ documentContent }: AIPanelProps) {
           <Sparkles className="h-5 w-5 text-primary" />
           <h3 className="font-headline font-bold text-lg">AI Assistant</h3>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">Powered by Google Gemini 1.5 Pro</p>
+        <p className="text-xs text-muted-foreground mt-1">Powered by Google Gemini 2.5 Flash</p>
       </div>
 
       <div className="p-4 space-y-3 border-b">

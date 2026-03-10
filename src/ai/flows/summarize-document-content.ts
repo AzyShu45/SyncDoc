@@ -33,7 +33,7 @@ const summarizeDocumentContentFlow = ai.defineFlow(
   async (input) => {
     let fullSummary = '';
     const { stream, response } = ai.generateStream({
-      model: 'googleai/gemini-1.5-flash', // Using gemini-1.5-flash for better availability and performance
+      model: 'googleai/gemini-2.5-flash',
       prompt: [
         { text: 'Please provide a concise and accurate summary of the following document content. Extract the main points and present them clearly.' },
         { text: 'Document Content:' },
