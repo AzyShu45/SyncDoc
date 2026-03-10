@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState(false)
 
+  // Proper redirect handling
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push("/dashboard")
@@ -40,7 +41,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      router.push("/dashboard")
+      // Redirection handled by useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -77,7 +78,7 @@ export default function LoginPage() {
         }, { merge: true })
       }
       
-      router.push("/dashboard")
+      // Redirection handled by useEffect
     } catch (error: any) {
       console.error("Google Login Error:", error)
       toast({
@@ -100,6 +101,7 @@ export default function LoginPage() {
     )
   }
 
+  // Defensively return a loader while redirecting if user is already found
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

@@ -22,6 +22,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
+  // Proper redirect handling to avoid "Cannot update a component while rendering"
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/")
@@ -57,6 +58,7 @@ export default function Dashboard() {
       updatedAt: serverTimestamp(),
     }
 
+    // This is non-blocking, so we can navigate immediately
     setDocumentNonBlocking(newDocRef, initialData, { merge: true })
     router.push(`/documents/${docId}`)
   }
@@ -89,6 +91,7 @@ export default function Dashboard() {
     )
   }
 
+  // Defensively return null while redirecting
   if (!user) {
     return null
   }

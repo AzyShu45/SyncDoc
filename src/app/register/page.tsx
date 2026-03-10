@@ -27,6 +27,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
 
+  // Proper redirect handling
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push("/dashboard")
@@ -42,8 +43,10 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const newUser = userCredential.user
 
+      // Set display name in Auth
       await updateProfile(newUser, { displayName: name })
 
+      // Create user record in Firestore
       const userRef = doc(firestore, "users", newUser.uid)
       setDocumentNonBlocking(userRef, {
         id: newUser.uid,
@@ -53,7 +56,7 @@ export default function RegisterPage() {
         updatedAt: serverTimestamp(),
       }, { merge: true })
 
-      router.push("/dashboard")
+      // Redirection handled by useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -70,6 +73,11 @@ export default function RegisterPage() {
         <Loader2 className="h-8 w-8 text-primary animate-spin" />
       </div>
     )
+  }
+
+  // Defensively return null if already logged in and redirecting
+  if (user) {
+    return null
   }
 
   return (
