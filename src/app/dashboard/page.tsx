@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, LayoutGrid, List, Filter, LogOut, Settings, Bell, Sparkles, FileText } from "lucide-react"
+import { Plus, Search, LayoutGrid, List, LogOut, Settings, Bell, Sparkles, FileText, Loader2 } from "lucide-react"
 import { DocumentCard } from "@/components/dashboard/DocumentCard"
 import { useRouter } from "next/navigation"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -21,8 +21,9 @@ export default function Dashboard() {
   const { auth } = useAuth() || {}
   const { user, isUserLoading } = useUser()
   const [search, setSearch] = useState("")
+  const [isCreating, setIsCreating] = useState(false)
 
-  // Redirect if not logged in
+  // Redirect if not logged in - using useEffect to avoid render-time navigation
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/")
@@ -36,13 +37,14 @@ export default function Dashboard() {
       collection(firestore, "documents"),
       where(`members.${user.uid}`, "!=", null)
     )
-  }, [firestore, user])
+  }, [firestore, user?.uid])
 
   const { data: documents, isLoading: docsLoading } = useCollection(documentsQuery)
 
   const createNewDoc = () => {
-    if (!firestore || !user) return
+    if (!firestore || !user || isCreating) return
     
+    setIsCreating(true)
     // Generate a fresh ID for the document
     const newDocRef = doc(collection(firestore, "documents"))
     const docId = newDocRef.id
@@ -60,7 +62,11 @@ export default function Dashboard() {
     }
 
     setDocumentNonBlocking(newDocRef, initialData, { merge: true })
-    router.push(`/documents/${docId}`)
+    
+    // Small delay to ensure Firestore has started the write before we navigate
+    setTimeout(() => {
+      router.push(`/documents/${docId}`)
+    }, 100)
   }
 
   const handleDelete = (id: string) => {
@@ -83,9 +89,9 @@ export default function Dashboard() {
   if (isUserLoading || docsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center gap-4">
-          <Sparkles className="h-12 w-12 text-primary/40" />
-          <p className="text-muted-foreground">Loading workspace...</p>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-muted-foreground font-medium">Loading workspace...</p>
         </div>
       </div>
     )
@@ -99,7 +105,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push("/dashboard")}>
             <div className="p-1.5 bg-primary rounded-lg">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
@@ -134,7 +140,7 @@ export default function Dashboard() {
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="w-56">
                  <div className="p-2 px-3 border-b mb-1">
-                   <p className="text-sm font-bold">{user?.displayName || "User"}</p>
+                   <p className="text-sm font-bold truncate">{user?.displayName || user?.email?.split('@')[0] || "User"}</p>
                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                  </div>
                  <DropdownMenuItem className="gap-2">
@@ -155,8 +161,13 @@ export default function Dashboard() {
             <h1 className="text-3xl font-headline font-bold">My Workspace</h1>
             <p className="text-muted-foreground">Manage and collaborate on your documents</p>
           </div>
-          <Button onClick={createNewDoc} className="font-bold gap-2 h-11 px-6 shadow-lg shadow-primary/20">
-            <Plus className="h-5 w-5" /> Create Document
+          <Button 
+            onClick={createNewDoc} 
+            disabled={isCreating}
+            className="font-bold gap-2 h-11 px-6 shadow-lg shadow-primary/20"
+          >
+            {isCreating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+            Create Document
           </Button>
         </div>
 

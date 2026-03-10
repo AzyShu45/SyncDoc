@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { 
@@ -9,18 +9,18 @@ import {
   Share2, 
   MessageSquare, 
   Sparkles, 
-  Users, 
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2
 } from "lucide-react"
 import { ChatPanel } from "@/components/workspace/ChatPanel"
 import { AIPanel } from "@/components/workspace/AIPanel"
-import { Role, Message as MessageType, PresenceUser } from "@/lib/types"
+import { Role } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, serverTimestamp, collection, query, orderBy, limit } from "firebase/firestore"
 import { updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function DocumentWorkspace() {
   const { id } = useParams()
@@ -28,6 +28,12 @@ export default function DocumentWorkspace() {
   const { firestore } = useFirestore() || {}
   const { user, isUserLoading } = useUser()
   
+  // Local state for immediate UI updates
+  const [localTitle, setLocalTitle] = useState("")
+  const [localContent, setLocalContent] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
+  const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
+
   // Redirect if not logged in
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -42,55 +48,64 @@ export default function DocumentWorkspace() {
   }, [firestore, id])
   const { data: document, isLoading: docLoading } = useDoc(docRef)
 
+  // Initialize local state from document data
+  useEffect(() => {
+    if (document) {
+      setLocalTitle(document.title || "")
+      setLocalContent(document.content || "")
+    }
+  }, [document?.id]) // Only reset when document ID changes
+
   // Fetch real messages
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !id) return null
     return query(
       collection(firestore, "documents", id as string, "messages"),
       orderBy("createdAt", "asc"),
-      limit(50)
+      limit(100)
     )
   }, [firestore, id])
   const { data: messagesData } = useCollection(messagesQuery)
 
-  const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
-  const [isSaving, setIsSaving] = useState(false)
-
-  // Sync state with Firestore document
   const role = (document?.members?.[user?.uid || ""] as Role) || 'VIEWER'
-  const title = document?.title || "Untitled Document"
-  const content = document?.content || ""
 
   const handleSendMessage = (text: string) => {
-    if (!firestore || !user || !id) return
+    if (!firestore || !user || !id || !document) return
     const messagesRef = collection(firestore, "documents", id as string, "messages")
     
-    // Denormalize documentMembers for auth independence as per rules
     const newMessage = {
       documentId: id,
       senderId: user.uid,
-      userName: user.displayName || user.email || "Anonymous",
+      userName: user.displayName || user.email?.split('@')[0] || "User",
       content: text,
-      documentMembers: document?.members || {},
+      documentMembers: document.members || {},
       createdAt: serverTimestamp(),
     }
     
     addDocumentNonBlocking(messagesRef, newMessage)
   }
 
-  const handleContentChange = useCallback((newContent: string) => {
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value
+    setLocalContent(newContent)
     if (role === 'VIEWER' || !docRef) return
+    
     setIsSaving(true)
     updateDocumentNonBlocking(docRef, {
       content: newContent,
       updatedAt: serverTimestamp()
     })
-    // Simulate end of sync visual for UX
-    setTimeout(() => setIsSaving(false), 1000)
-  }, [role, docRef])
+    
+    // Simple visual debounce for the "Saving" indicator
+    const timeoutId = setTimeout(() => setIsSaving(false), 800)
+    return () => clearTimeout(timeoutId)
+  }
 
-  const handleTitleChange = (newTitle: string) => {
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value
+    setLocalTitle(newTitle)
     if (role === 'VIEWER' || !docRef) return
+    
     updateDocumentNonBlocking(docRef, {
       title: newTitle,
       updatedAt: serverTimestamp()
@@ -98,7 +113,14 @@ export default function DocumentWorkspace() {
   }
 
   if (isUserLoading || docLoading) {
-    return <div className="h-screen flex items-center justify-center">Loading document...</div>
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          <p className="text-muted-foreground text-sm font-medium">Opening document...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!user) {
@@ -123,11 +145,12 @@ export default function DocumentWorkspace() {
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <Separator orientation="vertical" className="h-6" />
-          <div className="flex flex-col">
+          <div className="flex flex-col flex-1 max-w-md">
             <input 
-              value={title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              className="font-headline font-bold text-lg bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -ml-1 w-full max-w-xs transition-all"
+              value={localTitle}
+              onChange={handleTitleChange}
+              placeholder="Document Title"
+              className="font-headline font-bold text-lg bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -ml-1 w-full transition-all"
               disabled={role === 'VIEWER'}
             />
             <div className="flex items-center gap-2">
@@ -135,7 +158,7 @@ export default function DocumentWorkspace() {
                  {role === 'OWNER' && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-primary text-white border-none">Owner</Badge>}
                  {role === 'EDITOR' && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1">Editor</Badge>}
                  {role === 'VIEWER' && <Badge variant="outline" className="text-[9px] h-4 py-0 px-1">Viewer</Badge>}
-                 <span className="opacity-50">Syncing live</span>
+                 <span className="opacity-50">Auto-syncing active</span>
                </span>
             </div>
           </div>
@@ -180,26 +203,21 @@ export default function DocumentWorkspace() {
           {isSaving && (
             <div className="absolute top-4 right-8 z-10 animate-in fade-in slide-in-from-right-2">
               <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-accent/20 text-accent gap-1 py-1">
-                <span className="h-1 w-1 rounded-full bg-accent animate-ping" />
+                <Loader2 className="h-3 w-3 animate-spin" />
                 Saving...
               </Badge>
             </div>
           )}
           
           <div className="flex-1 overflow-y-auto pt-12 pb-20 px-8 lg:px-24">
-            <div className="max-w-4xl mx-auto space-y-6">
-              <div className="editor-container">
-                <div className="min-h-[70vh] focus:outline-none prose prose-slate max-w-none">
-                  <div 
-                    contentEditable={role !== 'VIEWER'} 
-                    suppressContentEditableWarning
-                    className="outline-none empty:before:content-['Start_writing_something_brilliant...'] empty:before:text-muted-foreground/30 min-h-[500px] whitespace-pre-wrap"
-                    onInput={(e) => handleContentChange(e.currentTarget.innerText)}
-                  >
-                    {content}
-                  </div>
-                </div>
-              </div>
+            <div className="max-w-4xl mx-auto h-full">
+              <Textarea
+                value={localContent}
+                onChange={handleContentChange}
+                disabled={role === 'VIEWER'}
+                placeholder="Start writing something brilliant..."
+                className="w-full h-full min-h-[70vh] text-lg leading-relaxed border-none focus-visible:ring-0 resize-none p-0 bg-transparent placeholder:text-muted-foreground/30 shadow-none"
+              />
             </div>
           </div>
         </div>
@@ -224,7 +242,7 @@ export default function DocumentWorkspace() {
             />
           )}
           {rightPanel === 'ai' && (
-            <AIPanel documentContent={content} />
+            <AIPanel documentContent={localContent} />
           )}
         </div>
       </div>
