@@ -53,13 +53,13 @@ export default function DocumentWorkspace() {
   }, [document?.id])
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!firestore || !id) return null
+    if (!firestore || !id || !user) return null
     return query(
       collection(firestore, "documents", id as string, "messages"),
       orderBy("createdAt", "asc"),
       limit(100)
     )
-  }, [firestore, id])
+  }, [firestore, id, user?.uid])
   const { data: messagesData } = useCollection(messagesQuery)
 
   const role = (document?.members?.[user?.uid || ""] as Role) || 'VIEWER'

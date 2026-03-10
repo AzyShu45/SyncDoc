@@ -7,24 +7,7 @@ service cloud.firestore {
      * 
      * CORE PHILOSOPHY:
      * This ruleset implements a robust, collaborative security model designed for rapid iteration.
-     * It prioritizes Authorization Independence through denormalization to ensure high performance
-     * and security without excessive 'get()' calls.
-     * 
-     * DATA STRUCTURE:
-     * - /users/{userId}: Private user profiles owned by the individual.
-     * - /documents/{documentId}: Shared collaborative workspaces using a 'members' map for access control.
-     * - /permissions/{permissionId}: Tracking records for document access, managed via document ownership.
-     * - /documents/.../messages & /documents/.../files: Resource-specific subcollections that inherit
-     *   access control via denormalized membership maps ('documentMembers').
-     * 
-     * KEY SECURITY DECISIONS:
-     * 1. Authorization Independence: Critical authorization data (like member UIDs and roles) is 
-     *    denormalized directly onto documents (Documents, Messages, Files).
-     * 2. Role-Based Access: Uses a map-based role system (Owner, Editor, Viewer) within documents.
-     * 3. Immutability: Relational integrity is maintained by preventing the modification of 
-     *    ownership or parent IDs after document creation.
-     * 4. Prototyping Flexibility: Data types and general schemas are not enforced, allowing 
-     *    frontend developers to evolve the data shape quickly.
+     * It prioritizes Authorization Independence through denormalization.
      */
 
     // --- Helper Functions ---
@@ -37,33 +20,26 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Used for updates and deletes to ensure the document exists and the user owns it
     function isExistingOwner(userId) {
       return resource != null && isOwner(userId);
     }
 
-    // Checks if the user is present in a denormalized 'members' or 'documentMembers' map
     function isMember(data) {
-      return isSignedIn() && (data.members[request.auth.uid] != null || data.documentMembers[request.auth.uid] != null);
+      return isSignedIn() && (
+        (data.members != null && data.members[request.auth.uid] != null) || 
+        (data.documentMembers != null && data.documentMembers[request.auth.uid] != null)
+      );
     }
 
-    // Checks if the user has one of the allowed roles in a membership map
     function hasRole(data, allowedRoles) {
       return isSignedIn() && (
-        data.members[request.auth.uid] in allowedRoles || 
-        data.documentMembers[request.auth.uid] in allowedRoles
+        (data.members != null && data.members[request.auth.uid] in allowedRoles) || 
+        (data.documentMembers != null && data.documentMembers[request.auth.uid] in allowedRoles)
       );
     }
 
     // --- Collection Rules ---
 
-    /**
-     * @description Rules for user profiles. Users can manage their own profile.
-     * @path /users/{userId}
-     * @allow (create) User with UID 'abc' creating /users/abc
-     * @deny (update) User with UID 'abc' updating /users/xyz
-     * @principle Ownership and Self-Creation.
-     */
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isOwner(userId);
@@ -72,59 +48,33 @@ service cloud.firestore {
       allow delete: if isExistingOwner(userId);
     }
 
-    /**
-     * @description Collaborative documents. Access is determined by a denormalized 'members' map.
-     * @path /documents/{documentId}
-     * @allow (get) Any user present in the 'members' map of the document.
-     * @deny (update) A user with the 'Viewer' role attempting to edit the document.
-     * @principle Shared Access (Closed Collaborators) with role-based write permissions.
-     */
     match /documents/{documentId} {
       allow get: if isMember(resource.data);
-      allow list: if isSignedIn(); // Queries must be filtered by 'members.[uid]'
+      allow list: if isSignedIn(); 
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update: if resource != null && hasRole(resource.data, ['Owner', 'Editor']) && request.resource.data.ownerId == resource.data.ownerId;
       allow delete: if resource != null && hasRole(resource.data, ['Owner']);
 
-      /**
-       * @description Chat messages for a document. Uses denormalized 'documentMembers' for fast checks.
-       * @path /documents/{documentId}/messages/{messageId}
-       * @allow (create) An 'Editor' of the document sending a new message.
-       * @deny (get) A user not present in the 'documentMembers' map.
-       * @principle Denormalization for Authorization Independence.
-       */
       match /messages/{messageId} {
-        allow get, list: if isMember(resource.data);
+        allow get: if isMember(resource.data);
+        allow list: if isSignedIn(); 
         allow create: if hasRole(request.resource.data, ['Owner', 'Editor']) && request.resource.data.senderId == request.auth.uid;
         allow update: if resource != null && hasRole(resource.data, ['Owner', 'Editor']) && request.resource.data.senderId == resource.data.senderId;
         allow delete: if resource != null && (hasRole(resource.data, ['Owner']) || isOwner(resource.data.senderId));
       }
 
-      /**
-       * @description Files associated with a document. Uses denormalized 'documentMembers'.
-       * @path /documents/{documentId}/files/{fileId}
-       * @allow (list) Any document member viewing the file list.
-       * @deny (delete) An 'Editor' trying to delete a file they didn't upload (only Owner can delete others' files).
-       * @principle Resource-specific roles via denormalized maps.
-       */
       match /files/{fileId} {
-        allow get, list: if isMember(resource.data);
+        allow get: if isMember(resource.data);
+        allow list: if isSignedIn();
         allow create: if hasRole(request.resource.data, ['Owner', 'Editor']) && request.resource.data.uploaderId == request.auth.uid;
         allow update: if resource != null && hasRole(resource.data, ['Owner', 'Editor']) && request.resource.data.uploaderId == resource.data.uploaderId;
         allow delete: if resource != null && (hasRole(resource.data, ['Owner']) || isOwner(resource.data.uploaderId));
       }
     }
 
-    /**
-     * @description Permission records for auditing. Access managed by the document owner.
-     * @path /permissions/{permissionId}
-     * @allow (create) Document owner creating a permission for a new collaborator.
-     * @deny (list) A user trying to list permissions for a document they don't own.
-     * @principle Relational integrity via denormalized 'documentOwnerId'.
-     */
     match /permissions/{permissionId} {
       allow get: if isSignedIn() && (isOwner(resource.data.userId) || isOwner(resource.data.documentOwnerId));
-      allow list: if isSignedIn(); // Result set restricted by query on 'userId' or 'documentOwnerId'
+      allow list: if isSignedIn(); 
       allow create: if isOwner(request.resource.data.documentOwnerId);
       allow update: if resource != null && isOwner(resource.data.documentOwnerId) && request.resource.data.documentId == resource.data.documentId;
       allow delete: if resource != null && isOwner(resource.data.documentOwnerId);
