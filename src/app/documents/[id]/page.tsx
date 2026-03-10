@@ -28,6 +28,13 @@ export default function DocumentWorkspace() {
   const { firestore } = useFirestore() || {}
   const { user, isUserLoading } = useUser()
   
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push("/")
+    }
+  }, [user, isUserLoading, router])
+
   // Fetch real document
   const docRef = useMemoFirebase(() => {
     if (!firestore || !id) return null
@@ -92,6 +99,10 @@ export default function DocumentWorkspace() {
 
   if (isUserLoading || docLoading) {
     return <div className="h-screen flex items-center justify-center">Loading document...</div>
+  }
+
+  if (!user) {
+    return null
   }
 
   if (!document && !docLoading) {

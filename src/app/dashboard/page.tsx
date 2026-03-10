@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore"
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { signOut } from "firebase/auth"
 import { useAuth } from "@/firebase"
 
@@ -21,6 +21,13 @@ export default function Dashboard() {
   const { auth } = useAuth() || {}
   const { user, isUserLoading } = useUser()
   const [search, setSearch] = useState("")
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push("/")
+    }
+  }, [user, isUserLoading, router])
 
   // Fetch real documents where user is a member
   const documentsQuery = useMemoFirebase(() => {
@@ -36,10 +43,10 @@ export default function Dashboard() {
   const createNewDoc = () => {
     if (!firestore || !user) return
     
-    const docId = Math.random().toString(36).substring(7)
-    const docRef = doc(firestore, "documents", docId)
+    // Generate a fresh ID for the document
+    const newDocRef = doc(collection(firestore, "documents"))
+    const docId = newDocRef.id
     
-    // Use the denormalized members map as per backend.json reasoning
     const initialData = {
       id: docId,
       title: "Untitled Document",
@@ -52,7 +59,7 @@ export default function Dashboard() {
       updatedAt: serverTimestamp(),
     }
 
-    addDocumentNonBlocking(collection(firestore, "documents"), initialData)
+    setDocumentNonBlocking(newDocRef, initialData, { merge: true })
     router.push(`/documents/${docId}`)
   }
 
@@ -85,7 +92,6 @@ export default function Dashboard() {
   }
 
   if (!user) {
-    router.push("/")
     return null
   }
 
