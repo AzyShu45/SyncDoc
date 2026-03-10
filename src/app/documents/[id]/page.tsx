@@ -1,66 +1,106 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
   ChevronLeft, 
   Share2, 
   MessageSquare, 
   Sparkles, 
   Users, 
-  Eye, 
-  Edit3, 
-  Download,
-  Info,
   MoreHorizontal
 } from "lucide-react"
 import { ChatPanel } from "@/components/workspace/ChatPanel"
 import { AIPanel } from "@/components/workspace/AIPanel"
-import { Role, Message, PresenceUser } from "@/lib/types"
+import { Role, Message as MessageType, PresenceUser } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase"
+import { doc, serverTimestamp, collection, query, orderBy, limit } from "firebase/firestore"
+import { updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 export default function DocumentWorkspace() {
   const { id } = useParams()
   const router = useRouter()
+  const { firestore } = useFirestore() || {}
+  const { user, isUserLoading } = useUser()
   
-  // Real-time states
-  const [title, setTitle] = useState("Untitled Document")
-  const [content, setContent] = useState("")
-  const [role, setRole] = useState<Role>("OWNER")
-  const [messages, setMessages] = useState<Message[]>([])
-  const [activeUsers, setActiveUsers] = useState<PresenceUser[]>([
-    { id: "1", name: "John Doe", email: "j@j.com", color: "#451B98" },
-    { id: "2", name: "Sarah Smith", email: "s@s.com", color: "#5CC2D6" }
-  ])
-  const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
+  // Fetch real document
+  const docRef = useMemoFirebase(() => {
+    if (!firestore || !id) return null
+    return doc(firestore, "documents", id as string)
+  }, [firestore, id])
+  const { data: document, isLoading: docLoading } = useDoc(docRef)
 
-  // UI state
+  // Fetch real messages
+  const messagesQuery = useMemoFirebase(() => {
+    if (!firestore || !id) return null
+    return query(
+      collection(firestore, "documents", id as string, "messages"),
+      orderBy("createdAt", "asc"),
+      limit(50)
+    )
+  }, [firestore, id])
+  const { data: messagesData } = useCollection(messagesQuery)
+
+  const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
   const [isSaving, setIsSaving] = useState(false)
 
-  const handleSendMessage = (text: string, file?: File) => {
-    const newMessage: Message = {
-      id: Math.random().toString(36),
-      documentId: id as string,
-      userId: "1",
-      userName: "John Doe",
-      text,
-      timestamp: new Date(),
-      fileUrl: file ? URL.createObjectURL(file) : undefined,
-      fileName: file ? file.name : undefined
+  // Sync state with Firestore document
+  const role = (document?.members?.[user?.uid || ""] as Role) || 'VIEWER'
+  const title = document?.title || "Untitled Document"
+  const content = document?.content || ""
+
+  const handleSendMessage = (text: string) => {
+    if (!firestore || !user || !id) return
+    const messagesRef = collection(firestore, "documents", id as string, "messages")
+    
+    // Denormalize documentMembers for auth independence as per rules
+    const newMessage = {
+      documentId: id,
+      senderId: user.uid,
+      userName: user.displayName || user.email || "Anonymous",
+      content: text,
+      documentMembers: document?.members || {},
+      createdAt: serverTimestamp(),
     }
-    setMessages(prev => [...prev, newMessage])
+    
+    addDocumentNonBlocking(messagesRef, newMessage)
   }
 
-  const handleContentChange = (newContent: string) => {
-    if (role === 'VIEWER') return
-    setContent(newContent)
+  const handleContentChange = useCallback((newContent: string) => {
+    if (role === 'VIEWER' || !docRef) return
     setIsSaving(true)
-    setTimeout(() => setIsSaving(false), 2000)
+    updateDocumentNonBlocking(docRef, {
+      content: newContent,
+      updatedAt: serverTimestamp()
+    })
+    // Simulate end of sync visual for UX
+    setTimeout(() => setIsSaving(false), 1000)
+  }, [role, docRef])
+
+  const handleTitleChange = (newTitle: string) => {
+    if (role === 'VIEWER' || !docRef) return
+    updateDocumentNonBlocking(docRef, {
+      title: newTitle,
+      updatedAt: serverTimestamp()
+    })
+  }
+
+  if (isUserLoading || docLoading) {
+    return <div className="h-screen flex items-center justify-center">Loading document...</div>
+  }
+
+  if (!document && !docLoading) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-4">
+        <h2 className="text-xl font-bold">Document not found</h2>
+        <Button onClick={() => router.push("/dashboard")}>Back to Dashboard</Button>
+      </div>
+    )
   }
 
   return (
@@ -75,7 +115,7 @@ export default function DocumentWorkspace() {
           <div className="flex flex-col">
             <input 
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => handleTitleChange(e.target.value)}
               className="font-headline font-bold text-lg bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -ml-1 w-full max-w-xs transition-all"
               disabled={role === 'VIEWER'}
             />
@@ -84,39 +124,13 @@ export default function DocumentWorkspace() {
                  {role === 'OWNER' && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-primary text-white border-none">Owner</Badge>}
                  {role === 'EDITOR' && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1">Editor</Badge>}
                  {role === 'VIEWER' && <Badge variant="outline" className="text-[9px] h-4 py-0 px-1">Viewer</Badge>}
-                 <span className="opacity-50">Saved automatically</span>
+                 <span className="opacity-50">Syncing live</span>
                </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Presence */}
-          <div className="flex items-center -space-x-2 mr-4">
-             {activeUsers.map(user => (
-               <TooltipProvider key={user.id}>
-                 <Tooltip>
-                   <TooltipTrigger asChild>
-                     <div 
-                       className="h-8 w-8 rounded-full border-2 border-card flex items-center justify-center text-xs font-bold text-white shadow-sm"
-                       style={{ backgroundColor: user.color }}
-                     >
-                       {user.name.substring(0, 1)}
-                     </div>
-                   </TooltipTrigger>
-                   <TooltipContent>
-                     <p className="text-xs">{user.name} ({user.role || 'Active now'})</p>
-                   </TooltipContent>
-                 </Tooltip>
-               </TooltipProvider>
-             ))}
-             <Button variant="outline" size="icon" className="h-8 w-8 rounded-full border-dashed bg-muted/20">
-                <Users className="h-4 w-4" />
-             </Button>
-          </div>
-
-          <Separator orientation="vertical" className="h-6 mx-2" />
-
           <Button variant="outline" size="sm" className="hidden sm:flex gap-2 font-bold" onClick={() => {}}>
             <Share2 className="h-4 w-4" /> Share
           </Button>
@@ -156,62 +170,26 @@ export default function DocumentWorkspace() {
             <div className="absolute top-4 right-8 z-10 animate-in fade-in slide-in-from-right-2">
               <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-accent/20 text-accent gap-1 py-1">
                 <span className="h-1 w-1 rounded-full bg-accent animate-ping" />
-                Syncing changes...
+                Saving...
               </Badge>
             </div>
           )}
           
           <div className="flex-1 overflow-y-auto pt-12 pb-20 px-8 lg:px-24">
             <div className="max-w-4xl mx-auto space-y-6">
-              {/* This represents the TipTap editor UI placeholder */}
               <div className="editor-container">
                 <div className="min-h-[70vh] focus:outline-none prose prose-slate max-w-none">
-                  <h1 contentEditable={role !== 'VIEWER'} suppressContentEditableWarning className="outline-none empty:before:content-['Document_Title'] empty:before:text-muted-foreground/30">{title}</h1>
                   <div 
                     contentEditable={role !== 'VIEWER'} 
                     suppressContentEditableWarning
-                    className="outline-none empty:before:content-['Start_writing_something_brilliant...'] empty:before:text-muted-foreground/30 min-h-[500px]"
+                    className="outline-none empty:before:content-['Start_writing_something_brilliant...'] empty:before:text-muted-foreground/30 min-h-[500px] whitespace-pre-wrap"
                     onInput={(e) => handleContentChange(e.currentTarget.innerText)}
                   >
-                    {content || (
-                      <div className="space-y-4">
-                        <p>Welcome to your new collaborative document. Here are a few things you can do:</p>
-                        <ul className="list-disc pl-5 space-y-2">
-                          <li>Edit this text in real-time with your team.</li>
-                          <li>Use the chat on the right to discuss ideas.</li>
-                          <li>Ask the AI to summarize or fix grammar.</li>
-                          <li>Share the link with others to start collaborating.</li>
-                        </ul>
-                      </div>
-                    )}
+                    {content}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Floating Action Menu for Editor (Mocked) */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-card border shadow-2xl rounded-full p-2 flex items-center gap-1">
-             <TooltipProvider>
-               <Tooltip>
-                 <TooltipTrigger asChild>
-                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><Edit3 className="h-4 w-4" /></Button>
-                 </TooltipTrigger>
-                 <TooltipContent><p>Text Format</p></TooltipContent>
-               </Tooltip>
-               <Tooltip>
-                 <TooltipTrigger asChild>
-                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><Download className="h-4 w-4" /></Button>
-                 </TooltipTrigger>
-                 <TooltipContent><p>Export PDF</p></TooltipContent>
-               </Tooltip>
-               <Tooltip>
-                 <TooltipTrigger asChild>
-                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><Info className="h-4 w-4" /></Button>
-                 </TooltipTrigger>
-                 <TooltipContent><p>Doc Info</p></TooltipContent>
-               </Tooltip>
-             </TooltipProvider>
           </div>
         </div>
 
@@ -223,7 +201,13 @@ export default function DocumentWorkspace() {
         >
           {rightPanel === 'chat' && (
             <ChatPanel 
-              messages={messages} 
+              messages={(messagesData || []).map(m => ({
+                id: m.id,
+                userName: m.userName || "Unknown",
+                text: m.content || "",
+                timestamp: m.createdAt?.toDate() || new Date(),
+                userId: m.senderId
+              })) as any} 
               onSendMessage={handleSendMessage} 
               userRole={role}
             />

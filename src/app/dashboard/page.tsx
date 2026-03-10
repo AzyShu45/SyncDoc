@@ -1,64 +1,96 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, LayoutGrid, List, Filter, LogOut, Settings, Bell, Sparkles } from "lucide-react"
+import { Plus, Search, LayoutGrid, List, Filter, LogOut, Settings, Bell, Sparkles, FileText } from "lucide-react"
 import { DocumentCard } from "@/components/dashboard/DocumentCard"
-import { Document } from "@/lib/types"
 import { useRouter } from "next/navigation"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-const MOCK_DOCS: Document[] = [
-  {
-    id: "1",
-    title: "Project Roadmap 2024",
-    content: "Our goals for the upcoming year...",
-    ownerId: "user1",
-    createdAt: new Date(),
-    updatedAt: new Date(Date.now() - 1000 * 60 * 30),
-  },
-  {
-    id: "2",
-    title: "Marketing Strategy",
-    content: "Targeting new demographics through...",
-    ownerId: "user1",
-    createdAt: new Date(),
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
-  },
-  {
-    id: "3",
-    title: "API Documentation",
-    content: "Endpoints for the new backend service...",
-    ownerId: "user2",
-    createdAt: new Date(),
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-  },
-]
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, where, serverTimestamp, doc } from "firebase/firestore"
+import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { signOut } from "firebase/auth"
+import { useAuth } from "@/firebase"
 
 export default function Dashboard() {
-  const [documents, setDocuments] = useState<Document[]>(MOCK_DOCS)
-  const [search, setSearch] = useState("")
   const router = useRouter()
+  const { firestore } = useFirestore() || {}
+  const { auth } = useAuth() || {}
+  const { user, isUserLoading } = useUser()
+  const [search, setSearch] = useState("")
+
+  // Fetch real documents where user is a member
+  const documentsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null
+    return query(
+      collection(firestore, "documents"),
+      where(`members.${user.uid}`, "!=", null)
+    )
+  }, [firestore, user])
+
+  const { data: documents, isLoading: docsLoading } = useCollection(documentsQuery)
 
   const createNewDoc = () => {
-    const id = Math.random().toString(36).substring(7)
-    router.push(`/documents/${id}`)
+    if (!firestore || !user) return
+    
+    const docId = Math.random().toString(36).substring(7)
+    const docRef = doc(firestore, "documents", docId)
+    
+    // Use the denormalized members map as per backend.json reasoning
+    const initialData = {
+      id: docId,
+      title: "Untitled Document",
+      content: "",
+      ownerId: user.uid,
+      members: {
+        [user.uid]: "OWNER"
+      },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }
+
+    addDocumentNonBlocking(collection(firestore, "documents"), initialData)
+    router.push(`/documents/${docId}`)
   }
 
   const handleDelete = (id: string) => {
-    setDocuments(prev => prev.filter(d => d.id !== id))
+    if (!firestore) return
+    const docRef = doc(firestore, "documents", id)
+    deleteDocumentNonBlocking(docRef)
   }
 
-  const filteredDocs = documents.filter(d => 
-    d.title.toLowerCase().includes(search.toLowerCase())
+  const handleLogout = async () => {
+    if (auth) {
+      await signOut(auth)
+      router.push("/")
+    }
+  }
+
+  const filteredDocs = (documents || []).filter(d => 
+    (d.title || "").toLowerCase().includes(search.toLowerCase())
   )
+
+  if (isUserLoading || docsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <Sparkles className="h-12 w-12 text-primary/40" />
+          <p className="text-muted-foreground">Loading workspace...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    router.push("/")
+    return null
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -90,19 +122,19 @@ export default function Dashboard() {
                <DropdownMenuTrigger asChild>
                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                    <Avatar className="h-8 w-8 border-2 border-primary/20">
-                     <AvatarFallback>JD</AvatarFallback>
+                     <AvatarFallback>{user?.email?.substring(0, 2).toUpperCase()}</AvatarFallback>
                    </Avatar>
                  </Button>
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="w-56">
                  <div className="p-2 px-3 border-b mb-1">
-                   <p className="text-sm font-bold">John Doe</p>
-                   <p className="text-xs text-muted-foreground truncate">john@syncdoc.com</p>
+                   <p className="text-sm font-bold">{user?.displayName || "User"}</p>
+                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                  </div>
                  <DropdownMenuItem className="gap-2">
                    <Settings className="h-4 w-4" /> Settings
                  </DropdownMenuItem>
-                 <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" onClick={() => router.push("/")}>
+                 <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" onClick={handleLogout}>
                    <LogOut className="h-4 w-4" /> Log out
                  </DropdownMenuItem>
                </DropdownMenuContent>
@@ -131,10 +163,6 @@ export default function Dashboard() {
                <List className="h-4 w-4" /> List
              </Button>
            </div>
-           
-           <Button variant="ghost" size="sm" className="gap-2 font-medium text-muted-foreground">
-             <Filter className="h-4 w-4" /> All Documents
-           </Button>
         </div>
 
         {filteredDocs.length > 0 ? (
@@ -142,7 +170,7 @@ export default function Dashboard() {
             {filteredDocs.map((doc) => (
               <DocumentCard 
                 key={doc.id} 
-                doc={doc} 
+                doc={doc as any} 
                 onDelete={handleDelete}
                 onShare={() => {}}
               />

@@ -9,18 +9,52 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label"
 import { Sparkles } from "lucide-react"
 import Link from "next/link"
+import { useAuth, useFirestore } from "@/firebase"
+import { createUserWithEmailAndPassword } from "firebase/auth"
+import { doc, serverTimestamp } from "firebase/firestore"
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useToast } from "@/hooks/use-toast"
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { auth } = useAuth() || {}
+  const { firestore } = useFirestore() || {}
+  const { toast } = useToast()
+  
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [name, setName] = useState("")
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!auth || !firestore) return
+
     setLoading(true)
-    setTimeout(() => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+
+      // Create user profile in Firestore
+      const userRef = doc(firestore, "users", user.uid)
+      setDocumentNonBlocking(userRef, {
+        id: user.uid,
+        email: user.email,
+        name: name,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
+
       router.push("/dashboard")
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Registration failed",
+        description: error.message || "Could not create account.",
+      })
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -47,15 +81,34 @@ export default function RegisterPage() {
             <CardContent className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="name">Full Name</Label>
-                <Input id="name" placeholder="John Doe" required className="bg-muted/50 border-transparent" />
+                <Input 
+                  id="name" 
+                  placeholder="John Doe" 
+                  required 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="name@example.com" required className="bg-muted/50 border-transparent" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="name@example.com" 
+                  required 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" required className="bg-muted/50 border-transparent" />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">

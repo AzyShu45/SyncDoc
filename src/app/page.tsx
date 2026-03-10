@@ -1,30 +1,54 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Sparkles, FileText, Users, Share2, ArrowRight } from "lucide-react"
+import { Sparkles, FileText, Users, Share2 } from "lucide-react"
 import Link from "next/link"
+import { useAuth, useUser } from "@/firebase"
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { auth } = useAuth() || {}
+  const { user, isUserLoading } = useUser()
+  const { toast } = useToast()
+  
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    // Simulate auth
-    setTimeout(() => {
+  useEffect(() => {
+    if (!isUserLoading && user) {
       router.push("/dashboard")
+    }
+  }, [user, isUserLoading, router])
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!auth) return
+    
+    setLoading(true)
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+      router.push("/dashboard")
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error.message || "Invalid credentials. Please try again.",
+      })
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
+
+  if (isUserLoading) return null
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
@@ -67,11 +91,6 @@ export default function LoginPage() {
 
       <div className="flex flex-col items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
-            <Sparkles className="h-8 w-8 text-primary" />
-            <span className="text-3xl font-headline font-bold text-primary">SyncDoc</span>
-          </div>
-
           <Card className="border-none shadow-xl bg-card">
             <CardHeader className="space-y-1 text-center">
               <CardTitle className="text-2xl font-headline font-bold">Welcome back</CardTitle>
@@ -88,21 +107,16 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="bg-muted/50 border-transparent focus:bg-background transition-colors"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <Link href="#" className="text-xs text-primary hover:underline font-medium">Forgot password?</Link>
-                  </div>
+                  <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-muted/50 border-transparent focus:bg-background transition-colors"
                   />
                 </div>
               </CardContent>
@@ -117,10 +131,6 @@ export default function LoginPage() {
               </CardFooter>
             </form>
           </Card>
-
-          <p className="text-center text-xs text-muted-foreground">
-            By clicking continue, you agree to our <Link href="#" className="underline">Terms of Service</Link> and <Link href="#" className="underline">Privacy Policy</Link>.
-          </p>
         </div>
       </div>
     </div>
