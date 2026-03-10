@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "workspace-hero",
+      "description": "A modern collaborative workspace environment",
+      "imageUrl": "https://picsum.photos/seed/syncdoc-hero/1200/800",
+      "imageHint": "modern workspace"
+    },
+    {
+      "id": "avatar-user-1",
+      "description": "User profile avatar",
+      "imageUrl": "https://picsum.photos/seed/user1/100/100",
+      "imageHint": "profile avatar"
+    }
+  ]
+}
