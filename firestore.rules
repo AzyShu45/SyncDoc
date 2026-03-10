@@ -52,23 +52,23 @@ service cloud.firestore {
       allow get: if isMember(resource.data);
       allow list: if isSignedIn(); 
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if resource != null && hasRole(resource.data, ['Owner', 'Editor']) && request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if resource != null && hasRole(resource.data, ['Owner']);
+      allow update: if resource != null && hasRole(resource.data, ['OWNER', 'EDITOR']) && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if resource != null && hasRole(resource.data, ['OWNER']);
 
       match /messages/{messageId} {
         allow get: if isMember(resource.data);
         allow list: if isSignedIn(); 
-        allow create: if hasRole(request.resource.data, ['Owner', 'Editor']) && request.resource.data.senderId == request.auth.uid;
-        allow update: if resource != null && hasRole(resource.data, ['Owner', 'Editor']) && request.resource.data.senderId == resource.data.senderId;
-        allow delete: if resource != null && (hasRole(resource.data, ['Owner']) || isOwner(resource.data.senderId));
+        allow create: if hasRole(request.resource.data, ['OWNER', 'EDITOR']) && request.resource.data.senderId == request.auth.uid;
+        allow update: if resource != null && hasRole(resource.data, ['OWNER', 'EDITOR']) && request.resource.data.senderId == resource.data.senderId;
+        allow delete: if resource != null && (hasRole(resource.data, ['OWNER']) || isOwner(resource.data.senderId));
       }
 
       match /files/{fileId} {
         allow get: if isMember(resource.data);
         allow list: if isSignedIn();
-        allow create: if hasRole(request.resource.data, ['Owner', 'Editor']) && request.resource.data.uploaderId == request.auth.uid;
-        allow update: if resource != null && hasRole(resource.data, ['Owner', 'Editor']) && request.resource.data.uploaderId == resource.data.uploaderId;
-        allow delete: if resource != null && (hasRole(resource.data, ['Owner']) || isOwner(resource.data.uploaderId));
+        allow create: if hasRole(request.resource.data, ['OWNER', 'EDITOR']) && request.resource.data.uploaderId == request.auth.uid;
+        allow update: if resource != null && hasRole(resource.data, ['OWNER', 'EDITOR']) && request.resource.data.uploaderId == resource.data.uploaderId;
+        allow delete: if resource != null && (hasRole(resource.data, ['OWNER']) || isOwner(resource.data.uploaderId));
       }
     }
 
