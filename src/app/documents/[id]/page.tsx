@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { 
@@ -21,13 +21,14 @@ import {
 import { ChatPanel } from "@/components/workspace/ChatPanel"
 import { AIPanel } from "@/components/workspace/AIPanel"
 import { ShareDialog } from "@/components/workspace/ShareDialog"
+import { Editor } from "@/components/workspace/Editor"
+import { PresenceBar } from "@/components/workspace/PresenceBar"
 import { Role } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { doc, serverTimestamp, collection, query, orderBy, limit } from "firebase/firestore"
+import { doc, serverTimestamp, collection, query, orderBy, limit, setDoc, deleteDoc } from "firebase/firestore"
 import { updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function DocumentWorkspace() {
@@ -41,6 +42,7 @@ export default function DocumentWorkspace() {
   const [isSaving, setIsSaving] = useState(false)
   const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
   const [isShareOpen, setIsShareOpen] = useState(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -48,6 +50,7 @@ export default function DocumentWorkspace() {
     }
   }, [user, isUserLoading, router])
 
+  // Document Subscription
   const docRef = useMemoFirebase(() => {
     if (!firestore || !id) return null
     return doc(firestore, "documents", id as string)
@@ -61,6 +64,37 @@ export default function DocumentWorkspace() {
     }
   }, [document?.id])
 
+  // Presence Subscription & Heartbeat
+  const presenceQuery = useMemoFirebase(() => {
+    if (!firestore || !id) return null
+    return query(collection(firestore, "documents", id as string, "presence"))
+  }, [firestore, id])
+  const { data: presenceData } = useCollection(presenceQuery)
+
+  useEffect(() => {
+    if (!firestore || !id || !user) return
+
+    const presenceRef = doc(firestore, "documents", id as string, "presence", user.uid)
+    
+    const updatePresence = () => {
+      setDoc(presenceRef, {
+        id: user.uid,
+        name: user.displayName || user.email?.split('@')[0] || "User",
+        photoURL: user.photoURL || "",
+        lastActive: serverTimestamp()
+      }, { merge: true })
+    }
+
+    updatePresence()
+    const interval = setInterval(updatePresence, 30000) // Every 30s heartbeat
+
+    return () => {
+      clearInterval(interval)
+      deleteDoc(presenceRef).catch(() => {}) // Try to remove on close
+    }
+  }, [firestore, id, user?.uid])
+
+  // Chat Subscription
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore || !id || !user) return null
     return query(
@@ -77,31 +111,29 @@ export default function DocumentWorkspace() {
     if (!firestore || !user || !id || !document) return
     const messagesRef = collection(firestore, "documents", id as string, "messages")
     
-    const newMessage = {
+    addDocumentNonBlocking(messagesRef, {
       documentId: id,
       senderId: user.uid,
       userName: user.displayName || user.email?.split('@')[0] || "User",
       content: text,
-      documentMembers: document.members || {},
       createdAt: serverTimestamp(),
-    }
-    
-    addDocumentNonBlocking(messagesRef, newMessage)
+    })
   }
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newContent = e.target.value
+  const handleEditorChange = (newContent: string) => {
     setLocalContent(newContent)
     if (role === 'VIEWER' || !docRef) return
     
     setIsSaving(true)
-    updateDocumentNonBlocking(docRef, {
-      content: newContent,
-      updatedAt: serverTimestamp()
-    })
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     
-    const timeoutId = setTimeout(() => setIsSaving(false), 800)
-    return () => clearTimeout(timeoutId)
+    saveTimeoutRef.current = setTimeout(() => {
+      updateDocumentNonBlocking(docRef, {
+        content: newContent,
+        updatedAt: serverTimestamp()
+      })
+      setIsSaving(false)
+    }, 1000) // 1s throttle for character sync
   }
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,7 +152,7 @@ export default function DocumentWorkspace() {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-6">
           <div className="h-14 w-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-          <p className="text-muted-foreground font-bold tracking-tight">Opening document...</p>
+          <p className="text-muted-foreground font-bold tracking-tight">Syncing workspace...</p>
         </div>
       </div>
     )
@@ -130,13 +162,13 @@ export default function DocumentWorkspace() {
 
   if (!document && !docLoading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center gap-6 text-center">
+      <div className="h-screen flex flex-col items-center justify-center gap-6 text-center p-8">
         <div className="p-10 bg-muted/30 rounded-full">
           <Monitor className="h-16 w-16 text-muted-foreground/30" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-3xl font-headline font-bold">Document not found</h2>
-          <p className="text-muted-foreground font-medium">It may have been deleted or you don't have access.</p>
+          <h2 className="text-3xl font-headline font-bold">Document inaccessible</h2>
+          <p className="text-muted-foreground font-medium max-w-xs mx-auto">This document may have been deleted or your access permissions were revoked.</p>
         </div>
         <Button onClick={() => router.push("/dashboard")} className="h-12 px-8 rounded-xl font-bold">Return to Dashboard</Button>
       </div>
@@ -145,7 +177,7 @@ export default function DocumentWorkspace() {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden selection:bg-primary/20">
-      <header className="h-16 glass-header border-b flex items-center justify-between px-6 shrink-0 shadow-sm">
+      <header className="h-16 glass-header border-b flex items-center justify-between px-6 shrink-0 shadow-sm z-50">
         <div className="flex items-center gap-6 flex-1">
           <TooltipProvider>
             <Tooltip>
@@ -164,7 +196,7 @@ export default function DocumentWorkspace() {
             <input 
               value={localTitle}
               onChange={handleTitleChange}
-              placeholder="Give your document a title..."
+              placeholder="Document Title"
               className="font-headline font-bold text-xl bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary/10 rounded-lg px-2 -ml-2 w-full transition-all tracking-tight"
               disabled={role === 'VIEWER'}
             />
@@ -176,92 +208,91 @@ export default function DocumentWorkspace() {
                  {isSaving ? (
                    <span className="flex items-center gap-1 animate-pulse text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Saving...</span>
                  ) : (
-                   <span className="flex items-center gap-1"><Cloud className="h-3 w-3 text-green-500" /><Check className="h-3 w-3 text-green-500" /> All changes synced</span>
+                   <span className="flex items-center gap-1"><Cloud className="h-3 w-3 text-green-500" /><Check className="h-3 w-3 text-green-500" /> Synced</span>
                  )}
                </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="hidden sm:flex gap-2 font-bold h-10 px-5 rounded-xl border-2 transition-all hover:bg-muted/50" 
-            onClick={() => setIsShareOpen(true)}
-          >
-            <Share2 className="h-4 w-4" /> Share Workspace
-          </Button>
+        <div className="flex items-center gap-6">
+          <PresenceBar activeUsers={(presenceData || []) as any} />
 
-          <div className="flex bg-muted/40 p-1 rounded-xl border shadow-inner">
-             <TooltipProvider>
-               <Tooltip>
-                 <TooltipTrigger asChild>
-                    <Button 
-                      variant={rightPanel === 'chat' ? 'secondary' : 'ghost'} 
-                      size="sm" 
-                      className={`h-8 px-4 gap-2 rounded-lg transition-all ${rightPanel === 'chat' ? 'shadow-sm' : ''}`}
-                      onClick={() => setRightPanel(rightPanel === 'chat' ? 'none' : 'chat')}
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      <span className="text-xs font-bold">Chat</span>
-                    </Button>
-                 </TooltipTrigger>
-                 <TooltipContent>Collaboration Chat</TooltipContent>
-               </Tooltip>
-             </TooltipProvider>
+          <div className="h-8 w-px bg-border hidden sm:block" />
 
-             <TooltipProvider>
-               <Tooltip>
-                 <TooltipTrigger asChild>
-                    <Button 
-                      variant={rightPanel === 'ai' ? 'secondary' : 'ghost'} 
-                      size="sm" 
-                      className={`h-8 px-4 gap-2 rounded-lg transition-all ${rightPanel === 'ai' ? 'shadow-sm' : ''}`}
-                      onClick={() => setRightPanel(rightPanel === 'ai' ? 'none' : 'ai')}
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      <span className="text-xs font-bold">AI Insights</span>
-                    </Button>
-                 </TooltipTrigger>
-                 <TooltipContent>AI Assistant</TooltipContent>
-               </Tooltip>
-             </TooltipProvider>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="hidden md:flex gap-2 font-bold h-10 px-5 rounded-xl border-2 transition-all hover:bg-muted/50" 
+              onClick={() => setIsShareOpen(true)}
+            >
+              <Share2 className="h-4 w-4" /> Share
+            </Button>
+
+            <div className="flex bg-muted/40 p-1 rounded-xl border shadow-inner">
+               <TooltipProvider>
+                 <Tooltip>
+                   <TooltipTrigger asChild>
+                      <Button 
+                        variant={rightPanel === 'chat' ? 'secondary' : 'ghost'} 
+                        size="sm" 
+                        className={`h-8 px-4 gap-2 rounded-lg transition-all ${rightPanel === 'chat' ? 'shadow-sm' : ''}`}
+                        onClick={() => setRightPanel(rightPanel === 'chat' ? 'none' : 'chat')}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="text-xs font-bold hidden lg:inline">Chat</span>
+                      </Button>
+                   </TooltipTrigger>
+                   <TooltipContent>Collaboration Chat</TooltipContent>
+                 </Tooltip>
+               </TooltipProvider>
+
+               <TooltipProvider>
+                 <Tooltip>
+                   <TooltipTrigger asChild>
+                      <Button 
+                        variant={rightPanel === 'ai' ? 'secondary' : 'ghost'} 
+                        size="sm" 
+                        className={`h-8 px-4 gap-2 rounded-lg transition-all ${rightPanel === 'ai' ? 'shadow-sm' : ''}`}
+                        onClick={() => setRightPanel(rightPanel === 'ai' ? 'none' : 'ai')}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        <span className="text-xs font-bold hidden lg:inline">AI</span>
+                      </Button>
+                   </TooltipTrigger>
+                   <TooltipContent>AI Assistant</TooltipContent>
+                 </Tooltip>
+               </TooltipProvider>
+            </div>
           </div>
-          
-          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl">
-             <MoreHorizontal className="h-6 w-6" />
-          </Button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden relative">
         <div className="flex-1 flex flex-col bg-background overflow-hidden">
           <div className="flex-1 overflow-y-auto pt-16 pb-32 px-10 lg:px-32 custom-scrollbar">
-            <div className="max-w-4xl mx-auto h-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            <div className="max-w-4xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4 duration-1000">
               {role === 'VIEWER' && (
-                <div className="bg-muted/40 p-4 rounded-2xl flex items-center justify-between border-2 border-dashed">
+                <div className="bg-muted/40 p-4 rounded-2xl flex items-center justify-between border-2 border-dashed mb-10">
                   <div className="flex items-center gap-3">
                     <Eye className="h-5 w-5 text-muted-foreground" />
-                    <p className="text-sm font-medium text-muted-foreground">You are in read-only mode. Ask the owner for edit access.</p>
+                    <p className="text-sm font-medium text-muted-foreground">Read-only mode. Ask the owner for edit access.</p>
                   </div>
-                  <Button variant="outline" size="sm" className="rounded-xl font-bold h-9">Request Access</Button>
                 </div>
               )}
               
-              <Textarea
-                value={localContent}
-                onChange={handleContentChange}
-                disabled={role === 'VIEWER'}
-                placeholder="The world is waiting for your words..."
-                className="w-full h-full min-h-[70vh] text-xl leading-[1.8] border-none focus-visible:ring-0 resize-none p-0 bg-transparent placeholder:text-muted-foreground/20 shadow-none font-body selection:bg-primary/30"
+              <Editor 
+                content={localContent} 
+                onChange={handleEditorChange} 
+                editable={role !== 'VIEWER'} 
               />
             </div>
           </div>
         </div>
 
         <aside 
-          className={`transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] border-l bg-card shadow-2xl relative shrink-0 ${
+          className={`transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] border-l bg-card shadow-2xl relative shrink-0 z-40 ${
             rightPanel !== 'none' ? 'w-[380px] lg:w-[420px]' : 'w-0 opacity-0 invisible'
           }`}
         >
