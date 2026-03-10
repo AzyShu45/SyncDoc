@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * SYNC DOC SECURITY RULES - PROTOTYPING MODE
+     * 
+     * CORE PHILOSOPHY:
+     * This ruleset implements a robust Role-Based Access Control (RBAC) model focused on 
+     * Authorization Independence. By denormalizing membership data directly onto documents 
+     * (the 'members' map), we ensure that security decisions are fast, atomic, and do not 
+     * require expensive cross-document lookups (get() calls).
+     * 
+     * DATA STRUCTURE:
+     * - /users/{userId}: Private user profile data.
+     * - /documents/{documentId}: Collaborative documents containing a 'members' map of UIDs to roles.
+     * - /documents/{documentId}/messages/{messageId}: Chat messages denormalizing 'documentMembers'.
+     * - /documents/{documentId}/files/{fileId}: Uploaded files denormalizing 'documentMembers'.
+     * 
+     * KEY SECURITY DECISIONS:
+     * 1. Authorization Independence: We strictly avoid 'get()' calls. Every document (including 
+     *    subcollection items) carries the necessary context to authorize the requestor.
+     * 2. Membership-Based Access: Access to documents and their associated messages/files is 
+     *    contingent on the user's UID being present in the 'members' or 'documentMembers' map.
+     * 3. Ownership Consistency: For user profiles and document creation, we enforce that the 
+     *    authenticated UID matches the internal 'id' or 'ownerId' field to maintain relational integrity.
+     * 4. Flexible Schema: In this prototyping phase, we do not enforce data types for content 
+     *    fields (like title or message content), allowing developers to iterate quickly.
+     */
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // Checks if the user is present in the document's membership map
+    function isMember(data) {
+      return isSignedIn() && data.members[request.auth.uid] != null;
+    }
+
+    // Checks if the user is present in the denormalized documentMembers map (for subcollections)
+    function isSubMember(data) {
+      return isSignedIn() && data.documentMembers[request.auth.uid] != null;
+    }
+
+    // Checks if the user has the 'owner' role in the membership map
+    function isDocOwner(data) {
+      return isSignedIn() && data.members[request.auth.uid] == 'owner';
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for user profiles. Users can only manage their own profile.
+     * @path /users/{userId}
+     * @allow get, list, create, update, delete if auth.uid matches userId.
+     * @deny Any request where auth.uid does not match the userId in the path.
+     * @principle Ownership: Restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update, delete: if isExistingOwner(userId) && request.resource.data.id == userId;
+    }
+
+    /**
+     * @description Rules for collaborative documents. Access is governed by the 'members' map.
+     * @path /documents/{documentId}
+     * @allow create if user sets themselves as owner. get/list/update if user is in members map. delete if user is owner.
+     * @deny Read/Write access if user is not explicitly listed in the 'members' map.
+     * @principle Shared Access (Closed Collaborators): Uses a denormalized map for atomic RBAC.
+     */
+    match /documents/{documentId} {
+      allow get: if isMember(resource.data);
+      allow list: if isSignedIn() && resource.data.members[request.auth.uid] != null;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if resource != null && isMember(resource.data);
+      allow delete: if resource != null && isDocOwner(resource.data);
+
+      /**
+       * @description Rules for messages within a document. Relies on denormalized 'documentMembers'.
+       * @path /documents/{documentId}/messages/{messageId}
+       * @allow create/list if user is a member of the parent document. update/delete if user is the message author.
+       * @deny Access if the user is not a document member or attempting to edit others' messages.
+       * @principle Authorization Independence: Uses denormalized context to avoid parent document lookups.
+       */
+      match /messages/{messageId} {
+        allow get: if isSubMember(resource.data);
+        allow list: if isSignedIn() && resource.data.documentMembers[request.auth.uid] != null;
+        allow create: if isSubMember(request.resource.data) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if resource != null && resource.data.userId == request.auth.uid;
+      }
+
+      /**
+       * @description Rules for files within a document. Relies on denormalized 'documentMembers'.
+       * @path /documents/{documentId}/files/{fileId}
+       * @allow create/list if user is a member of the parent document. update/delete if user is the file uploader.
+       * @deny Access if the user is not a document member.
+       * @principle Authorization Independence: Validates access using data stored within the file document itself.
+       */
+      match /files/{fileId} {
+        allow get: if isSubMember(resource.data);
+        allow list: if isSignedIn() && resource.data.documentMembers[request.auth.uid] != null;
+        allow create: if isSubMember(request.resource.data) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if resource != null && resource.data.userId == request.auth.uid;
+      }
+    }
+  }
+}

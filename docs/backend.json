@@ -1,0 +1,296 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user profile in the SyncDoc application. This entity stores basic user information, assuming an external system handles authentication credentials like passwords.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, used for login and notifications. This must be unique across all users.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's display name or full name."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Document": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Document",
+      "type": "object",
+      "description": "Represents a collaborative document in the SyncDoc application, allowing multiple users to edit its content in real-time.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Document entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the document, displayed on the dashboard and workspace."
+        },
+        "content": {
+          "type": "string",
+          "description": "The rich text content of the document, typically stored as a string (e.g., JSON or TipTap-specific format)."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Reference to the User who originally created and owns this document. (Relationship: User 1:N Document)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the document was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the document was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "content",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Permission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Permission",
+      "type": "object",
+      "description": "Defines the specific access level (role) a user has on a particular document, facilitating Role-Based Access Control.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Permission entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who is granted this specific permission. (Relationship: User N:N Document via Permission)"
+        },
+        "documentId": {
+          "type": "string",
+          "description": "Reference to the Document for which this permission is granted. (Relationship: User N:N Document via Permission)"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role assigned to the user for this document, e.g., 'Owner', 'Editor', or 'Viewer'."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this permission was granted.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this permission was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "documentId",
+        "role",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a chat message sent within the real-time chat sidebar of a document.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chat message."
+        },
+        "documentId": {
+          "type": "string",
+          "description": "Reference to the Document where this message was sent. (Relationship: Document 1:N Message)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who sent this message. (Relationship: User 1:N Message)"
+        },
+        "content": {
+          "type": "string",
+          "description": "The textual content of the chat message."
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Optional reference to a File uploaded and associated with this message. (Relationship: File 1:1 Message)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "documentId",
+        "userId",
+        "content",
+        "createdAt"
+      ]
+    },
+    "File": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "File",
+      "type": "object",
+      "description": "Represents an image or PDF file uploaded by a user within a document's context, typically appearing in the chat feed.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the uploaded file."
+        },
+        "documentId": {
+          "type": "string",
+          "description": "Reference to the Document this file is associated with. (Relationship: Document 1:N File)"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who uploaded this file. (Relationship: User 1:N File)"
+        },
+        "url": {
+          "type": "string",
+          "description": "The public URL where the file is stored (e.g., Cloudinary URL).",
+          "format": "uri"
+        },
+        "filename": {
+          "type": "string",
+          "description": "The original name of the uploaded file."
+        },
+        "fileType": {
+          "type": "string",
+          "description": "The type of the file, such as 'image' or 'pdf'."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the file was uploaded.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "documentId",
+        "userId",
+        "url",
+        "filename",
+        "fileType",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Access is typically restricted to the user themselves (read/write their own profile) or backend services. The `{userId}` wildcard directly corresponds to `request.auth.uid` for security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user, corresponding to `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/documents/{documentId}",
+        "definition": {
+          "entityName": "Document",
+          "schema": {
+            "$ref": "#/backend/entities/Document"
+          },
+          "description": "Stores collaborative document content and metadata. This collection includes denormalized authorization fields: `ownerId` (the user who created it) and a `members` map (e.g., `{'uid1': 'owner', 'uid2': 'editor', 'uid3': 'viewer'}`) for efficient, atomic role-based access control. This design enables secure 'list' operations for all documents a user has access to, without requiring additional `get()` calls in security rules. The `Permission` entity's data is reflected in this `members` map.",
+          "params": [
+            {
+              "name": "documentId",
+              "description": "The unique ID of the document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/documents/{documentId}/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "Stores chat messages associated with a specific document. Each message document denormalizes `documentOwnerId` and `documentMembers` from its parent document to ensure Authorization Independence. This allows security rules to evaluate access to messages without performing a `get()` call on the parent document, thereby supporting secure 'list' operations.",
+          "params": [
+            {
+              "name": "documentId",
+              "description": "The unique ID of the parent document."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique ID of the message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/documents/{documentId}/files/{fileId}",
+        "definition": {
+          "entityName": "File",
+          "schema": {
+            "$ref": "#/backend/entities/File"
+          },
+          "description": "Stores metadata for files uploaded to a specific document. Each file document denormalizes `documentOwnerId` and `documentMembers` from its parent document to ensure Authorization Independence. This allows security rules to evaluate access to files without performing a `get()` call on the parent document, thereby supporting secure 'list' operations.",
+          "params": [
+            {
+              "name": "documentId",
+              "description": "The unique ID of the parent document."
+            },
+            {
+              "name": "fileId",
+              "description": "The unique ID of the file."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed to strictly adhere to the core principles of Authorization Independence and enable secure QAPs (Queryable Authorization Patterns), making security rules simple, robust, and debuggable. \n\n**Authorization Independence via Denormalization (CRITICAL):**\n1.  **Documents Collection (`/documents/{documentId}`):** Each `Document` document includes a denormalized `members` map (e.g., `members: { 'uid1': 'owner', 'uid2': 'editor', 'uid3': 'viewer' }`). This map stores the roles of all users who have access to this specific document. This eliminates the need for `get()` calls to a separate `permissions` collection within security rules. When a user creates or is granted access to a document, the backend will ensure this `members` map is updated.\n2.  **Subcollections (`/documents/{documentId}/messages/{messageId}` and `/documents/{documentId}/files/{fileId}`):** Documents within these subcollections (`Message`, `File`) also denormalize the `documentOwnerId` and `documentMembers` map from their parent `Document`. This means that security rules for messages and files do not need to perform a `get()` operation on the parent document. All necessary authorization context is present directly within the `message` or `file` document itself. This is critical for maintaining atomic operations and preventing security rule complexity.\n\n**QAPs (Rules are not Filters):**\n1.  **Listing User-Accessible Documents:** Users can efficiently query for all documents they have access to by performing a `list` operation on the `/documents` collection. A Firestore query like `db.collection('documents').where('members.{{request.auth.uid}}', '!=', null)` will return all documents where the authenticated user is listed in the `members` map, without requiring security rules to filter data. The security rules will only need to verify that `request.auth.uid` exists in `resource.data.members`.\n2.  **Listing Messages/Files within a Document:** For subcollections like `messages` or `files`, listing is secured by the denormalized `documentMembers` map within each message or file document. If a user has read access to the parent document (checked via `documentMembers` on the subcollection document), they can list all contained messages or files. This allows for secure `list` operations without relying on slow or complex `get()` calls in rules.\n\n**DBAC (Database-Based Access Control):** Roles are explicitly stored within the `members` map on `Document`, `Message`, and `File` documents, ensuring that all authorization decisions are made based on data stored directly in the database, aligned with `request.auth.uid`.\n\nThis design prioritizes high performance and maintainability by embedding authorization logic directly into the data structure, significantly reducing the complexity and potential for errors in Firestore Security Rules."
+  }
+}
