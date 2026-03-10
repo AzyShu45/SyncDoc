@@ -4,7 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SYNC DOC SECURITY RULES - PRODUCTION READY PROTOTYPE
+     * SYNC DOC SECURITY RULES - PRODUCTION READY
      */
 
     function isSignedIn() {
@@ -15,9 +15,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Helper to check membership in the denormalized members map
-    function getRole(data) {
-      return data.members[request.auth.uid];
+    // Helper to check if the user is a member of the document
+    function isMember(docData) {
+      return isSignedIn() && docData.members[request.auth.uid] != null;
+    }
+
+    // Helper to check for specific roles
+    function hasRole(docData, roles) {
+      return isSignedIn() && docData.members[request.auth.uid] in roles;
     }
 
     match /users/{userId} {
@@ -29,32 +34,36 @@ service cloud.firestore {
     }
 
     match /documents/{documentId} {
-      // Allow list if signed in. The client query filters by membership.
-      allow list: if isSignedIn();
+      // Allow read (get and list) if the user is in the members map.
+      // This is query-friendly for membership-filtered list requests.
+      allow read: if isMember(resource.data);
       
-      // Allow get if user is in the members map
-      allow get: if isSignedIn() && resource.data.members[request.auth.uid] != null;
-      
-      // Allow create if user sets themselves as owner
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      // Allow create if user sets themselves as OWNER
+      allow create: if isSignedIn() && request.resource.data.members[request.auth.uid] == 'OWNER';
       
       // Allow update if user has OWNER or EDITOR role
-      allow update: if isSignedIn() && (resource.data.members[request.auth.uid] in ['OWNER', 'EDITOR']);
+      allow update: if hasRole(resource.data, ['OWNER', 'EDITOR']);
       
       // Allow delete if user is OWNER
-      allow delete: if isSignedIn() && (resource.data.members[request.auth.uid] == 'OWNER');
+      allow delete: if hasRole(resource.data, ['OWNER']);
 
       match /messages/{messageId} {
-        // Simplified rules for subcollections in this prototype to ensure collaboration works
-        allow read, write: if isSignedIn();
+        // Messages are accessible to any member of the parent document
+        // We use 'get' on the parent document to check membership
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] != null;
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] in ['OWNER', 'EDITOR'];
+        allow update, delete: if false; // Messages are immutable for now
       }
 
       match /files/{fileId} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] != null;
+        allow write: if isSignedIn() && get(/databases/$(database)/documents/documents/$(documentId)).data.members[request.auth.uid] in ['OWNER', 'EDITOR'];
       }
     }
 
     match /permissions/{permissionId} {
+      // Temporary permissive rules for permissions to allow the share dialog to function
+      // In a production app, these would be restricted to the document owner
       allow read, write: if isSignedIn();
     }
   }

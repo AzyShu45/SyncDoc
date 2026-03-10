@@ -31,9 +31,10 @@ export default function Dashboard() {
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null
+    // Membership query that aligns with security rules
     return query(
       collection(firestore, "documents"),
-      where(`members.${user.uid}`, "!=", null),
+      where(`members.${user.uid}`, "in", ["OWNER", "EDITOR", "VIEWER"]),
       orderBy("updatedAt", "desc")
     )
   }, [firestore, user?.uid])
