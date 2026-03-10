@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
+  // Explicit redirect if not logged in
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/")
@@ -71,6 +72,7 @@ export default function Dashboard() {
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth)
+      router.push("/")
     }
   }
 
@@ -78,6 +80,9 @@ export default function Dashboard() {
     (d.title || "").toLowerCase().includes(search.toLowerCase())
   )
 
+  // Show loading while auth OR documents are being initially fetched
+  // We check docsLoading && !documents to ensure we show a loader on first load,
+  // but not necessarily when the list updates in real-time later.
   if (isUserLoading || (docsLoading && !documents && !docsError)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -89,6 +94,7 @@ export default function Dashboard() {
     )
   }
 
+  // Final safety check to prevent rendering dashboard content without a user
   if (!user) {
     return null
   }
@@ -178,13 +184,7 @@ export default function Dashboard() {
         {docsError ? (
           <div className="p-8 text-center bg-destructive/10 rounded-xl border border-destructive/20">
             <p className="text-destructive font-bold">Error loading workspace</p>
-            <p className="text-sm text-muted-foreground">Please try refreshing the page.</p>
-          </div>
-        ) : docsLoading && !documents ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
-            ))}
+            <p className="text-sm text-muted-foreground">Please try refreshing the page or checking your internet connection.</p>
           </div>
         ) : filteredDocs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

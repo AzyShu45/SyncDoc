@@ -28,6 +28,7 @@ export default function LoginPage() {
   const [socialLoading, setSocialLoading] = useState(false)
 
   useEffect(() => {
+    // If user is already logged in and we're not checking anymore, go to dashboard
     if (!isUserLoading && user) {
       router.push("/dashboard")
     }
@@ -40,6 +41,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
+      // Redirection will be handled by the useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -63,6 +65,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
+      // Check if user exists in Firestore, if not, create profile
       const userRef = doc(firestore, "users", user.uid)
       const userSnap = await getDoc(userRef)
       
@@ -71,11 +74,15 @@ export default function LoginPage() {
           id: user.uid,
           email: user.email,
           name: user.displayName || user.email?.split('@')[0] || "User",
+          photoURL: user.photoURL,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }, { merge: true })
       }
+      
+      // router.push("/dashboard") is handled by the useEffect
     } catch (error: any) {
+      console.error("Google Login Error:", error)
       toast({
         variant: "destructive",
         title: "Google login failed",
@@ -85,10 +92,26 @@ export default function LoginPage() {
     }
   }
 
+  // Show a clean loader while checking auth state
   if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-muted-foreground font-medium animate-pulse">Checking connection...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // If we have a user, don't show the login form (redirecting)
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-muted-foreground font-medium">Entering workspace...</p>
+        </div>
       </div>
     )
   }
