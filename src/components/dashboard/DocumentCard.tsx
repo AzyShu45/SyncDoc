@@ -20,6 +20,8 @@ export function DocumentCard({ doc, onDelete, onShare }: DocumentCardProps) {
     if (!dateField) return new Date();
     // Handle Firestore Timestamp objects
     if (typeof dateField.toDate === 'function') return dateField.toDate();
+    // Handle objects with seconds/nanoseconds (common Firestore serialization)
+    if (dateField && typeof dateField.seconds === 'number') return new Date(dateField.seconds * 1000);
     // Handle ISO strings or other date formats
     const d = new Date(dateField);
     return isNaN(d.getTime()) ? new Date() : d;

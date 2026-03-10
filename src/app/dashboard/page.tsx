@@ -31,11 +31,11 @@ export default function Dashboard() {
 
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null
-    // Membership query that aligns with security rules
+    // Membership query that aligns exactly with security rules
+    // Using simple query structure to avoid indexing issues for prototype
     return query(
       collection(firestore, "documents"),
-      where(`members.${user.uid}`, "in", ["OWNER", "EDITOR", "VIEWER"]),
-      orderBy("updatedAt", "desc")
+      where(`members.${user.uid}`, "in", ["OWNER", "EDITOR", "VIEWER"])
     )
   }, [firestore, user?.uid])
 
@@ -77,9 +77,14 @@ export default function Dashboard() {
     }
   }
 
-  const filteredDocs = (documents || []).filter(d => 
-    (d.title || "").toLowerCase().includes(search.toLowerCase())
-  )
+  // Client-side filtering and sorting for the prototype
+  const filteredDocs = (documents || [])
+    .filter(d => (d.title || "").toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const dateA = a.updatedAt?.toDate?.() || new Date(a.updatedAt || 0)
+      const dateB = b.updatedAt?.toDate?.() || new Date(b.updatedAt || 0)
+      return dateB.getTime() - dateA.getTime()
+    })
 
   if (isUserLoading || (docsLoading && !documents && !docsError)) {
     return (
