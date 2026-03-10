@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { ChatPanel } from "@/components/workspace/ChatPanel"
 import { AIPanel } from "@/components/workspace/AIPanel"
+import { ShareDialog } from "@/components/workspace/ShareDialog"
 import { Role } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -32,6 +33,7 @@ export default function DocumentWorkspace() {
   const [localContent, setLocalContent] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [rightPanel, setRightPanel] = useState<'chat' | 'ai' | 'none'>('chat')
+  const [isShareOpen, setIsShareOpen] = useState(false)
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -158,7 +160,12 @@ export default function DocumentWorkspace() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="hidden sm:flex gap-2 font-bold" onClick={() => {}}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="hidden sm:flex gap-2 font-bold" 
+            onClick={() => setIsShareOpen(true)}
+          >
             <Share2 className="h-4 w-4" /> Share
           </Button>
 
@@ -236,6 +243,14 @@ export default function DocumentWorkspace() {
           )}
         </div>
       </div>
+
+      <ShareDialog 
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        documentId={id as string}
+        currentMembers={document?.members || {}}
+        ownerId={document?.ownerId || ""}
+      />
     </div>
   )
 }
