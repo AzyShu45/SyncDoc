@@ -8,7 +8,7 @@ import { Plus, Search, LayoutGrid, List, LogOut, Settings, Bell, Sparkles, FileT
 import { DocumentCard } from "@/components/dashboard/DocumentCard"
 import { useRouter } from "next/navigation"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where, serverTimestamp, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -23,14 +23,12 @@ export default function Dashboard() {
   const [search, setSearch] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
-  // Redirect if not logged in - using useEffect to avoid render-time navigation
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push("/")
     }
   }, [user, isUserLoading, router])
 
-  // Fetch real documents where user is a member
   const documentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null
     return query(
@@ -45,7 +43,6 @@ export default function Dashboard() {
     if (!firestore || !user || isCreating) return
     
     setIsCreating(true)
-    // Generate a fresh ID for the document
     const newDocRef = doc(collection(firestore, "documents"))
     const docId = newDocRef.id
     
@@ -63,10 +60,8 @@ export default function Dashboard() {
 
     setDocumentNonBlocking(newDocRef, initialData, { merge: true })
     
-    // Small delay to ensure Firestore has started the write before we navigate
-    setTimeout(() => {
-      router.push(`/documents/${docId}`)
-    }, 100)
+    // Immediate navigation for better UX, Firestore handles the background write
+    router.push(`/documents/${docId}`)
   }
 
   const handleDelete = (id: string) => {
@@ -86,7 +81,7 @@ export default function Dashboard() {
     (d.title || "").toLowerCase().includes(search.toLowerCase())
   )
 
-  if (isUserLoading || docsLoading) {
+  if (isUserLoading || (docsLoading && !documents)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -134,7 +129,8 @@ export default function Dashboard() {
                <DropdownMenuTrigger asChild>
                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                    <Avatar className="h-8 w-8 border-2 border-primary/20">
-                     <AvatarFallback>{user?.email?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                     <AvatarImage src={user.photoURL || undefined} />
+                     <AvatarFallback>{user?.displayName?.substring(0, 2).toUpperCase() || user?.email?.substring(0, 2).toUpperCase()}</AvatarFallback>
                    </Avatar>
                  </Button>
                </DropdownMenuTrigger>
@@ -182,7 +178,13 @@ export default function Dashboard() {
            </div>
         </div>
 
-        {filteredDocs.length > 0 ? (
+        {docsLoading && !documents ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-48 rounded-lg bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : filteredDocs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDocs.map((doc) => (
               <DocumentCard 

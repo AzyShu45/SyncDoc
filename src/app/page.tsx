@@ -7,21 +7,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Sparkles, FileText, Users, Share2 } from "lucide-react"
+import { Sparkles, FileText, Users, Share2, Loader2, Chrome } from "lucide-react"
 import Link from "next/link"
-import { useAuth, useUser } from "@/firebase"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { useAuth, useUser, useFirestore } from "@/firebase"
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
+import { doc, getDoc, serverTimestamp } from "firebase/firestore"
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const router = useRouter()
   const { auth } = useAuth() || {}
+  const { firestore } = useFirestore() || {}
   const { user, isUserLoading } = useUser()
   const { toast } = useToast()
   
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [socialLoading, setSocialLoading] = useState(false)
 
   useEffect(() => {
     if (!isUserLoading && user) {
@@ -36,19 +40,56 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      router.push("/dashboard")
+      // Redirect handled by useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Login failed",
         description: error.message || "Invalid credentials. Please try again.",
       })
-    } finally {
       setLoading(false)
     }
   }
 
-  if (isUserLoading) return null
+  const handleGoogleLogin = async () => {
+    if (!auth || !firestore) return
+    setSocialLoading(true)
+    try {
+      const provider = new GoogleAuthProvider()
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+
+      // Check if user exists in Firestore, if not create profile
+      const userRef = doc(firestore, "users", user.uid)
+      const userSnap = await getDoc(userRef)
+      
+      if (!userSnap.exists()) {
+        setDocumentNonBlocking(userRef, {
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || user.email?.split('@')[0] || "User",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true })
+      }
+      // Redirect handled by useEffect
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Google login failed",
+        description: error.message || "Could not sign in with Google.",
+      })
+      setSocialLoading(false)
+    }
+  }
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
@@ -96,8 +137,27 @@ export default function LoginPage() {
               <CardTitle className="text-2xl font-headline font-bold">Welcome back</CardTitle>
               <CardDescription>Enter your credentials to access your workspace</CardDescription>
             </CardHeader>
-            <form onSubmit={handleLogin}>
-              <CardContent className="grid gap-4">
+            <CardContent className="grid gap-4">
+              <Button 
+                variant="outline" 
+                className="w-full h-11 gap-2 font-bold" 
+                onClick={handleGoogleLogin}
+                disabled={socialLoading || loading}
+              >
+                {socialLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
+                Continue with Google
+              </Button>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleLogin} className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -107,6 +167,7 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    disabled={loading || socialLoading}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -117,19 +178,21 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    disabled={loading || socialLoading}
                   />
                 </div>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-4">
-                <Button className="w-full font-bold h-11" type="submit" disabled={loading}>
+                <Button className="w-full font-bold h-11 mt-2" type="submit" disabled={loading || socialLoading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
-                <div className="relative w-full text-center text-xs">
-                  <span className="bg-background px-2 text-muted-foreground">Don't have an account?</span>
-                  <Link href="/register" className="ml-1 text-primary hover:underline font-bold">Sign up now</Link>
-                </div>
-              </CardFooter>
-            </form>
+              </form>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-4">
+              <div className="relative w-full text-center text-xs">
+                <span className="text-muted-foreground">Don't have an account?</span>
+                <Link href="/register" className="ml-1 text-primary hover:underline font-bold">Sign up now</Link>
+              </div>
+            </CardFooter>
           </Card>
         </div>
       </div>

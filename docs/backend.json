@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -218,7 +219,8 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "anonymous",
+      "google"
     ]
   },
   "firestore": {
@@ -312,6 +314,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and Access Modeling, ensuring a secure, scalable, and debuggable system for SyncDoc. \n\n**Authorization Independence via Denormalization:**\n\n1.  **`/documents/{documentId}` (Document):** This collection is central to collaboration. To achieve Authorization Independence and avoid costly `get()` calls in security rules, each `Document` document includes a denormalized `members` map (e.g., `members: { 'userId1': 'Owner', 'userId2': 'Editor' }`). This map stores the roles of all users with access to the document. Security rules can directly check `resource.data.members[request.auth.uid]` to determine a user's permissions, making access checks atomic and highly efficient.\n2.  **`/permissions/{permissionId}` (Permission):** While the `Document.members` map is the primary source of truth for real-time access control, the `Permission` entity exists as a separate record (as required by the prompt's database table definition) to manage these grants. For its own write operations, each `Permission` document denormalizes the `documentOwnerId` from the related `Document`. This allows security rules for `permissions` to check `request.auth.uid == resource.data.documentOwnerId` directly, without a `get()` call to the `Document` collection, thereby preserving Authorization Independence for this collection. Backend services would be responsible for synchronizing changes in this collection with the `Document.members` map.\n3.  **`/documents/{documentId}/messages/{messageId}` (Message):** As a subcollection of `Document`, each `Message` document denormalizes the `documentMembers` map from its parent `Document`. This critical denormalization allows security rules for `Message` documents to check `resource.data.documentMembers[request.auth.uid]` directly. For instance, to read messages, a user only needs to be present in `documentMembers`, while to write, they need an 'Editor' or 'Owner' role. This eliminates `get()` calls to the parent `Document` for every message operation.\n4.  **`/documents/{documentId}/files/{fileId}` (File):** Similar to messages, each `File` document within its subcollection also denormalizes the `documentMembers` map from its parent `Document`. This ensures that rules for file uploads (only 'Editor' or 'Owner' can upload) and file access (all members can read) can be evaluated directly on the `File` document itself, without needing `get()` calls to its parent `Document`.\n\n**QAPs (Query-Based Access Patterns) Support:**\n\n*   **`/documents`:** The denormalized `members` map enables secure `list` operations. Users can efficiently query for all documents they have access to by using a query like `db.collection('documents').where('members.' + request.auth.uid, 'exists')` or `db.collection('documents').where('members.' + request.auth.uid, 'in', ['Owner', 'Editor', 'Viewer'])`. This ensures that only authorized documents are returned, satisfying the QAPs principle.\n*   **`/users/{userId}`:** User profiles are directly accessible by their UID, simplifying individual user data retrieval.\n*   **Subcollections (`/messages`, `/files`):** Once a user has established access to a parent document (verified by the `Document.members` map and subsequently denormalized to subcollection documents), listing children entities (messages, files) within that document context becomes secure and straightforward. Rules ensure that only document members can perform read operations, and specific roles can perform write operations on these subcollections.\n\nThis architecture minimizes rule complexity, maximizes security, and optimizes for atomic operations by making each document independently auditable for access control."
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Structural Segregation, and Access Modeling, ensuring a secure, scalable, and debuggable system for SyncDoc."
   }
 }
