@@ -15,15 +15,18 @@ interface DocumentCardProps {
 }
 
 export function DocumentCard({ doc, onDelete, onShare }: DocumentCardProps) {
+  // Robust date handling for Firestore Timestamps and various formats
   const getSafeDate = (dateField: any) => {
     if (!dateField) return new Date();
+    // Handle Firestore Timestamp objects
     if (typeof dateField.toDate === 'function') return dateField.toDate();
+    // Handle ISO strings or other date formats
     const d = new Date(dateField);
     return isNaN(d.getTime()) ? new Date() : d;
   };
 
   const updatedAt = getSafeDate(doc.updatedAt);
-  const memberCount = Object.keys(doc.members || {}).length;
+  const memberCount = doc.members ? Object.keys(doc.members).length : 1;
 
   return (
     <Card className="modern-card group border-none bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col h-[280px]">
@@ -66,7 +69,7 @@ export function DocumentCard({ doc, onDelete, onShare }: DocumentCardProps) {
       <CardFooter className="p-6 pt-0 border-t bg-muted/10 flex justify-between items-center mt-auto">
         <div className="flex items-center gap-3">
           <div className="flex -space-x-3">
-             {Object.keys(doc.members || {}).slice(0, 3).map((uid, i) => (
+             {doc.members && Object.keys(doc.members).slice(0, 3).map((uid, i) => (
                 <div key={uid} className="h-8 w-8 rounded-full border-2 border-background bg-primary/20 flex items-center justify-center text-[10px] font-bold overflow-hidden shadow-sm">
                   <img src={`https://picsum.photos/seed/${uid}/100/100`} alt="avatar" className="h-full w-full object-cover" />
                 </div>
