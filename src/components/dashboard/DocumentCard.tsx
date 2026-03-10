@@ -3,73 +3,88 @@
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileText, MoreVertical, Share2, Trash2 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { FileText, MoreHorizontal, Share2, Trash2, Clock, Users, ChevronRight } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
-import { Document } from "@/lib/types"
 
 interface DocumentCardProps {
-  doc: any // Using any to safely handle Firestore Timestamp objects
+  doc: any 
   onDelete: (id: string) => void
   onShare: (id: string) => void
 }
 
 export function DocumentCard({ doc, onDelete, onShare }: DocumentCardProps) {
-  // Utility to safely convert Firestore Timestamp or string to a JS Date
   const getSafeDate = (dateField: any) => {
     if (!dateField) return new Date();
-    // Check if it's a Firestore Timestamp
-    if (typeof dateField.toDate === 'function') {
-      return dateField.toDate();
-    }
-    // Try standard date constructor
+    if (typeof dateField.toDate === 'function') return dateField.toDate();
     const d = new Date(dateField);
     return isNaN(d.getTime()) ? new Date() : d;
   };
 
   const updatedAt = getSafeDate(doc.updatedAt);
+  const memberCount = Object.keys(doc.members || {}).length;
 
   return (
-    <Card className="hover:shadow-md transition-shadow group relative bg-card">
-      <Link href={`/documents/${doc.id}`} className="block">
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
-              <FileText className="h-6 w-6 text-primary" />
-            </div>
+    <Card className="modern-card group border-none bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col h-[280px]">
+      <Link href={`/documents/${doc.id}`} className="flex-1 flex flex-col p-6">
+        <div className="flex justify-between items-start mb-6">
+          <div className="p-3 bg-primary/10 rounded-2xl group-hover:bg-primary group-hover:text-white transition-all duration-300">
+            <FileText className="h-7 w-7 transition-colors" />
           </div>
-          <CardTitle className="mt-4 truncate text-lg font-headline">{doc.title || "Untitled Document"}</CardTitle>
-          <CardDescription className="text-xs">
-            Modified {formatDistanceToNow(updatedAt)} ago
-          </CardDescription>
-        </CardHeader>
-      </Link>
-      <div className="absolute top-4 right-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onShare(doc.id)} className="gap-2">
-              <Share2 className="h-4 w-4" /> Share
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDelete(doc.id)} className="gap-2 text-destructive focus:text-destructive">
-              <Trash2 className="h-4 w-4" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <CardFooter className="pt-0 pb-4 px-6 flex justify-between items-center">
-        <div className="flex -space-x-2">
-           <div className="h-6 w-6 rounded-full border-2 border-background bg-accent flex items-center justify-center text-[10px] font-bold">JD</div>
-           <div className="h-6 w-6 rounded-full border-2 border-background bg-primary flex items-center justify-center text-[10px] font-bold text-white">MK</div>
+          <div onClick={(e) => e.preventDefault()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-muted">
+                  <MoreHorizontal className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-2xl border-none">
+                <DropdownMenuItem onClick={() => onShare(doc.id)} className="gap-3 p-3 rounded-lg cursor-pointer">
+                  <Share2 className="h-4 w-4" /> Collaboration
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onDelete(doc.id)} className="gap-3 p-3 rounded-lg text-destructive focus:text-destructive cursor-pointer">
+                  <Trash2 className="h-4 w-4" /> Delete Permanently
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-        <Button variant="link" size="sm" className="p-0 h-auto font-medium text-primary" asChild>
-          <Link href={`/documents/${doc.id}`}>Open Editor</Link>
-        </Button>
+
+        <div className="space-y-2">
+          <CardTitle className="truncate text-xl font-headline font-bold tracking-tight">
+            {doc.title || "Untitled Document"}
+          </CardTitle>
+          <div className="flex items-center gap-2 text-muted-foreground text-sm font-medium">
+             <Clock className="h-3.5 w-3.5" />
+             <span>Edited {formatDistanceToNow(updatedAt)} ago</span>
+          </div>
+        </div>
+      </Link>
+
+      <CardFooter className="p-6 pt-0 border-t bg-muted/10 flex justify-between items-center mt-auto">
+        <div className="flex items-center gap-3">
+          <div className="flex -space-x-3">
+             {Object.keys(doc.members || {}).slice(0, 3).map((uid, i) => (
+                <div key={uid} className="h-8 w-8 rounded-full border-2 border-background bg-primary/20 flex items-center justify-center text-[10px] font-bold overflow-hidden shadow-sm">
+                  <img src={`https://picsum.photos/seed/${uid}/100/100`} alt="avatar" className="h-full w-full object-cover" />
+                </div>
+             ))}
+             {memberCount > 3 && (
+                <div className="h-8 w-8 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[10px] font-bold shadow-sm">
+                  +{memberCount - 3}
+                </div>
+             )}
+          </div>
+          {memberCount > 1 && <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{memberCount} Contributors</span>}
+        </div>
+
+        <Link href={`/documents/${doc.id}`}>
+          <Button variant="ghost" size="sm" className="h-9 gap-2 font-bold group/btn text-primary rounded-xl hover:bg-primary/10">
+            Open <ChevronRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform" />
+          </Button>
+        </Link>
       </CardFooter>
     </Card>
   )

@@ -10,7 +10,12 @@ import {
   MessageSquare, 
   Sparkles, 
   MoreHorizontal,
-  Loader2
+  Loader2,
+  CloudCheck,
+  PanelRightClose,
+  PanelRightOpen,
+  Monitor,
+  Eye
 } from "lucide-react"
 import { ChatPanel } from "@/components/workspace/ChatPanel"
 import { AIPanel } from "@/components/workspace/AIPanel"
@@ -22,6 +27,7 @@ import { useFirestore, useUser, useDoc, useCollection, useMemoFirebase } from "@
 import { doc, serverTimestamp, collection, query, orderBy, limit } from "firebase/firestore"
 import { updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function DocumentWorkspace() {
   const { id } = useParams()
@@ -110,119 +116,152 @@ export default function DocumentWorkspace() {
 
   if (isUserLoading || docLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 text-primary animate-spin" />
-          <p className="text-muted-foreground text-sm font-medium">Opening document...</p>
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-6">
+          <div className="h-14 w-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-muted-foreground font-bold tracking-tight">Opening document...</p>
         </div>
       </div>
     )
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   if (!document && !docLoading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center gap-4">
-        <h2 className="text-xl font-bold">Document not found</h2>
-        <Button onClick={() => router.push("/dashboard")}>Back to Dashboard</Button>
+      <div className="h-screen flex flex-col items-center justify-center gap-6 text-center">
+        <div className="p-10 bg-muted/30 rounded-full">
+          <Monitor className="h-16 w-16 text-muted-foreground/30" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-headline font-bold">Document not found</h2>
+          <p className="text-muted-foreground font-medium">It may have been deleted or you don't have access.</p>
+        </div>
+        <Button onClick={() => router.push("/dashboard")} className="h-12 px-8 rounded-xl font-bold">Return to Dashboard</Button>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
-      <header className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-4 flex-1">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")}>
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <Separator orientation="vertical" className="h-6" />
-          <div className="flex flex-col flex-1 max-w-md">
+    <div className="flex flex-col h-screen bg-background overflow-hidden selection:bg-primary/20">
+      <header className="h-16 glass-header border-b flex items-center justify-between px-6 shrink-0 shadow-sm">
+        <div className="flex items-center gap-6 flex-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-muted" onClick={() => router.push("/dashboard")}>
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Back to Dashboard</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <Separator orientation="vertical" className="h-8 opacity-20" />
+          
+          <div className="flex flex-col flex-1 max-w-xl">
             <input 
               value={localTitle}
               onChange={handleTitleChange}
-              placeholder="Document Title"
-              className="font-headline font-bold text-lg bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -ml-1 w-full transition-all"
+              placeholder="Give your document a title..."
+              className="font-headline font-bold text-xl bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-primary/10 rounded-lg px-2 -ml-2 w-full transition-all tracking-tight"
               disabled={role === 'VIEWER'}
             />
-            <div className="flex items-center gap-2">
-               <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                 {role === 'OWNER' && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1 bg-primary text-white border-none">Owner</Badge>}
-                 {role === 'EDITOR' && <Badge variant="secondary" className="text-[9px] h-4 py-0 px-1">Editor</Badge>}
-                 {role === 'VIEWER' && <Badge variant="outline" className="text-[9px] h-4 py-0 px-1">Viewer</Badge>}
-                 <span className="opacity-50">Auto-syncing active</span>
-               </span>
+            <div className="flex items-center gap-3">
+               <Badge variant="secondary" className={`text-[10px] h-5 py-0 px-2 font-bold uppercase tracking-wider ${role === 'OWNER' ? 'bg-primary text-white' : ''}`}>
+                 {role}
+               </Badge>
+               <div className="flex items-center gap-1.5 text-muted-foreground/60 text-[10px] font-bold uppercase tracking-widest">
+                 {isSaving ? (
+                   <span className="flex items-center gap-1 animate-pulse text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Saving...</span>
+                 ) : (
+                   <span className="flex items-center gap-1"><CloudCheck className="h-3 w-3 text-green-500" /> All changes synced</span>
+                 )}
+               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button 
             variant="outline" 
             size="sm" 
-            className="hidden sm:flex gap-2 font-bold" 
+            className="hidden sm:flex gap-2 font-bold h-10 px-5 rounded-xl border-2 transition-all hover:bg-muted/50" 
             onClick={() => setIsShareOpen(true)}
           >
-            <Share2 className="h-4 w-4" /> Share
+            <Share2 className="h-4 w-4" /> Share Workspace
           </Button>
 
-          <div className="flex border rounded-lg overflow-hidden bg-muted/30 p-1">
-             <Button 
-               variant={rightPanel === 'chat' ? 'secondary' : 'ghost'} 
-               size="sm" 
-               className="h-7 px-3 gap-2"
-               onClick={() => setRightPanel(rightPanel === 'chat' ? 'none' : 'chat')}
-             >
-               <MessageSquare className="h-3.5 w-3.5" />
-               <span className="text-xs font-bold">Chat</span>
-             </Button>
-             <Button 
-               variant={rightPanel === 'ai' ? 'secondary' : 'ghost'} 
-               size="sm" 
-               className="h-7 px-3 gap-2"
-               onClick={() => setRightPanel(rightPanel === 'ai' ? 'none' : 'ai')}
-             >
-               <Sparkles className="h-3.5 w-3.5" />
-               <span className="text-xs font-bold">AI</span>
-             </Button>
+          <div className="flex bg-muted/40 p-1 rounded-xl border shadow-inner">
+             <TooltipProvider>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                    <Button 
+                      variant={rightPanel === 'chat' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className={`h-8 px-4 gap-2 rounded-lg transition-all ${rightPanel === 'chat' ? 'shadow-sm' : ''}`}
+                      onClick={() => setRightPanel(rightPanel === 'chat' ? 'none' : 'chat')}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      <span className="text-xs font-bold">Chat</span>
+                    </Button>
+                 </TooltipTrigger>
+                 <TooltipContent>Collaboration Chat</TooltipContent>
+               </Tooltip>
+             </TooltipProvider>
+
+             <TooltipProvider>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                    <Button 
+                      variant={rightPanel === 'ai' ? 'secondary' : 'ghost'} 
+                      size="sm" 
+                      className={`h-8 px-4 gap-2 rounded-lg transition-all ${rightPanel === 'ai' ? 'shadow-sm' : ''}`}
+                      onClick={() => setRightPanel(rightPanel === 'ai' ? 'none' : 'ai')}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span className="text-xs font-bold">AI Insights</span>
+                    </Button>
+                 </TooltipTrigger>
+                 <TooltipContent>AI Assistant</TooltipContent>
+               </Tooltip>
+             </TooltipProvider>
           </div>
           
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-             <MoreHorizontal className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl">
+             <MoreHorizontal className="h-6 w-6" />
           </Button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 flex flex-col bg-background overflow-hidden relative">
-          {isSaving && (
-            <div className="absolute top-4 right-8 z-10 animate-in fade-in slide-in-from-right-2">
-              <Badge variant="outline" className="bg-background/80 backdrop-blur-sm border-accent/20 text-accent gap-1 py-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Saving...
-              </Badge>
-            </div>
-          )}
-          
-          <div className="flex-1 overflow-y-auto pt-12 pb-20 px-8 lg:px-24">
-            <div className="max-w-4xl mx-auto h-full">
+      <div className="flex flex-1 overflow-hidden relative">
+        <div className="flex-1 flex flex-col bg-background overflow-hidden">
+          <div className="flex-1 overflow-y-auto pt-16 pb-32 px-10 lg:px-32 custom-scrollbar">
+            <div className="max-w-4xl mx-auto h-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+              {role === 'VIEWER' && (
+                <div className="bg-muted/40 p-4 rounded-2xl flex items-center justify-between border-2 border-dashed">
+                  <div className="flex items-center gap-3">
+                    <Eye className="h-5 w-5 text-muted-foreground" />
+                    <p className="text-sm font-medium text-muted-foreground">You are in read-only mode. Ask the owner for edit access.</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="rounded-xl font-bold h-9">Request Access</Button>
+                </div>
+              )}
+              
               <Textarea
                 value={localContent}
                 onChange={handleContentChange}
                 disabled={role === 'VIEWER'}
-                placeholder="Start writing something brilliant..."
-                className="w-full h-full min-h-[70vh] text-lg leading-relaxed border-none focus-visible:ring-0 resize-none p-0 bg-transparent placeholder:text-muted-foreground/30 shadow-none"
+                placeholder="The world is waiting for your words..."
+                className="w-full h-full min-h-[70vh] text-xl leading-[1.8] border-none focus-visible:ring-0 resize-none p-0 bg-transparent placeholder:text-muted-foreground/20 shadow-none font-body selection:bg-primary/30"
               />
             </div>
           </div>
         </div>
 
-        <div 
-          className={`transition-all duration-300 border-l bg-card overflow-hidden shrink-0 ${
-            rightPanel !== 'none' ? 'w-80 lg:w-96' : 'w-0'
+        <aside 
+          className={`transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] border-l bg-card shadow-2xl relative shrink-0 ${
+            rightPanel !== 'none' ? 'w-[380px] lg:w-[420px]' : 'w-0 opacity-0 invisible'
           }`}
         >
           {rightPanel === 'chat' && (
@@ -241,7 +280,27 @@ export default function DocumentWorkspace() {
           {rightPanel === 'ai' && (
             <AIPanel documentContent={localContent} />
           )}
-        </div>
+          
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-1/2 -left-4 h-8 w-8 rounded-full bg-background border shadow-md hover:scale-110 transition-all z-50"
+            onClick={() => setRightPanel('none')}
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </Button>
+        </aside>
+
+        {rightPanel === 'none' && (
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="absolute right-6 bottom-6 h-12 w-12 rounded-2xl shadow-2xl hover:scale-110 transition-all z-40 animate-in zoom-in"
+            onClick={() => setRightPanel('chat')}
+          >
+            <PanelRightOpen className="h-6 w-6" />
+          </Button>
+        )}
       </div>
 
       <ShareDialog 

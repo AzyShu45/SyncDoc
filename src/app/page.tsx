@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Sparkles, FileText, Users, Share2, Loader2, Chrome } from "lucide-react"
+import { Sparkles, FileText, Users, Share2, Loader2, Chrome, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { useAuth, useUser, useFirestore } from "@/firebase"
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
@@ -27,7 +27,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState(false)
 
-  // Navigate to dashboard if already logged in
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push("/dashboard")
@@ -56,10 +55,7 @@ export default function LoginPage() {
     setSocialLoading(true)
     try {
       const provider = new GoogleAuthProvider()
-      // Always prompt to select account to handle multiple logged-in users
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      })
+      provider.setCustomParameters({ prompt: 'select_account' })
       
       const result = await signInWithPopup(auth, provider)
       const loggedInUser = result.user
@@ -91,128 +87,146 @@ export default function LoginPage() {
   if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 text-primary animate-spin" />
-          <p className="text-muted-foreground font-medium animate-pulse">Checking connection...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-10 w-10 text-primary animate-spin" />
-          <p className="text-muted-foreground font-medium">Entering workspace...</p>
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+            <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-primary animate-pulse" />
+          </div>
+          <p className="text-muted-foreground font-medium tracking-tight">Syncing your workspace...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-center p-12 bg-primary text-primary-foreground relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-accent/20 rounded-full -mr-32 -mt-32 blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full -ml-48 -mb-48 blur-3xl" />
+    <div className="min-h-screen grid lg:grid-cols-2 bg-background selection:bg-primary/20">
+      <div className="hidden lg:flex flex-col justify-between p-16 bg-primary text-primary-foreground relative overflow-hidden">
+        {/* Dynamic Background Elements */}
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-accent/30 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-400/20 rounded-full blur-[100px]" />
+        
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="p-2.5 bg-white rounded-2xl shadow-2xl shadow-black/20">
+            <Sparkles className="h-7 w-7 text-primary" />
+          </div>
+          <span className="text-3xl font-headline font-bold tracking-tighter">SyncDoc</span>
+        </div>
 
-        <div className="relative z-10 space-y-8 max-w-lg">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-white/10 rounded-xl">
-              <Sparkles className="h-8 w-8 text-accent" />
-            </div>
-            <span className="text-3xl font-headline font-bold">SyncDoc</span>
+        <div className="relative z-10 space-y-10">
+          <div className="space-y-6">
+            <h1 className="text-7xl font-headline font-bold leading-[0.9] tracking-tighter">
+              The Workspace <br /> for <span className="text-accent">Innovators.</span>
+            </h1>
+            <p className="text-xl text-primary-foreground/70 leading-relaxed max-w-md">
+              Collaborate in real-time with AI-powered insights, secure sharing, and a writing experience that flows as fast as you do.
+            </p>
           </div>
 
-          <h1 className="text-5xl font-headline font-bold leading-tight">
-            Collaborate with <span className="text-accent">Intelligence.</span>
-          </h1>
-
-          <p className="text-lg text-primary-foreground/80 leading-relaxed">
-            Experience the future of document collaboration. Real-time editing, integrated AI assistance, and seamless team communication in one secure workspace.
-          </p>
-
-          <div className="grid sm:grid-cols-3 gap-6 pt-4">
-            <div className="space-y-2">
-              <FileText className="h-6 w-6 text-accent" />
-              <p className="text-sm font-medium">Rich Editor</p>
-            </div>
-            <div className="space-y-2">
-              <Users className="h-6 w-6 text-accent" />
-              <p className="text-sm font-medium">Live Presence</p>
-            </div>
-            <div className="space-y-2">
-              <Share2 className="h-6 w-6 text-accent" />
-              <p className="text-sm font-medium">Role Access</p>
-            </div>
+          <div className="flex gap-4">
+             <div className="flex -space-x-3">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="h-10 w-10 rounded-full border-2 border-primary bg-muted-foreground/20 overflow-hidden">
+                    <img src={`https://picsum.photos/seed/user${i}/100/100`} alt="user" className="h-full w-full object-cover" />
+                  </div>
+                ))}
+             </div>
+             <div className="text-sm font-medium flex flex-col justify-center">
+                <span className="text-white">Joined by 10,000+ teams</span>
+                <span className="text-primary-foreground/50 text-xs">Build better, together.</span>
+             </div>
           </div>
+        </div>
+
+        <div className="relative z-10 grid grid-cols-3 gap-8 pt-8 border-t border-white/10">
+          {[
+            { icon: FileText, label: "Rich Context" },
+            { icon: Users, label: "Live Sync" },
+            { icon: Share2, label: "Granular Access" }
+          ].map((item, idx) => (
+            <div key={idx} className="space-y-2 group cursor-default">
+              <item.icon className="h-6 w-6 text-accent group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60">{item.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center p-8">
-        <div className="w-full max-w-md space-y-8">
-          <Card className="border-none shadow-xl bg-card">
-            <CardHeader className="space-y-1 text-center">
-              <CardTitle className="text-2xl font-headline font-bold">Welcome back</CardTitle>
-              <CardDescription>Enter your credentials to access your workspace</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <Button 
-                variant="outline" 
-                className="w-full h-11 gap-2 font-bold" 
-                onClick={handleGoogleLogin}
-                disabled={socialLoading || loading}
-              >
-                {socialLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
-                Continue with Google
-              </Button>
-              
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
-                </div>
-              </div>
+      <div className="flex flex-col items-center justify-center p-8 bg-background relative overflow-hidden">
+        {/* Mobile Background Elements */}
+        <div className="lg:hidden absolute top-0 left-0 w-full h-full -z-10 opacity-30">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/20 rounded-full blur-3xl" />
+        </div>
 
-              <form onSubmit={handleLogin} className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+        <div className="w-full max-w-md space-y-8">
+          <div className="space-y-2 text-center">
+            <h2 className="text-4xl font-headline font-bold tracking-tight">Ready to start?</h2>
+            <p className="text-muted-foreground font-medium">Log in to your collaborative workspace</p>
+          </div>
+
+          <div className="grid gap-6">
+            <Button 
+              variant="outline" 
+              className="w-full h-14 gap-3 font-bold text-lg rounded-2xl hover:bg-muted/50 transition-all border-2" 
+              onClick={handleGoogleLogin}
+              disabled={socialLoading || loading}
+            >
+              {socialLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Chrome className="h-5 w-5" />}
+              Continue with Google
+            </Button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-4 text-muted-foreground font-bold tracking-widest">Or via email</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider opacity-60 ml-1">Email address</Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="name@example.com"
+                    placeholder="name@company.com"
+                    className="h-12 bg-muted/30 border-none rounded-xl focus:ring-2 focus:ring-primary px-4"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={loading || socialLoading}
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center ml-1">
+                    <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider opacity-60">Password</Label>
+                    <Link href="#" className="text-xs text-primary font-bold hover:underline">Forgot password?</Link>
+                  </div>
                   <Input
                     id="password"
                     type="password"
+                    placeholder="••••••••"
+                    className="h-12 bg-muted/30 border-none rounded-xl focus:ring-2 focus:ring-primary px-4"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading || socialLoading}
                   />
                 </div>
-                <Button className="w-full font-bold h-11 mt-2" type="submit" disabled={loading || socialLoading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {loading ? "Signing in..." : "Sign In"}
-                </Button>
-              </form>
-            </CardContent>
-            <CardFooter className="flex flex-col gap-4">
-              <div className="relative w-full text-center text-xs">
-                <span className="text-muted-foreground">Don't have an account?</span>
-                <Link href="/register" className="ml-1 text-primary hover:underline font-bold">Sign up now</Link>
               </div>
-            </CardFooter>
-          </Card>
+              <Button className="w-full font-bold h-14 text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all group" type="submit" disabled={loading || socialLoading}>
+                {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : "Sign in to workspace"}
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </form>
+          </div>
+
+          <p className="text-center text-sm font-medium">
+            <span className="text-muted-foreground">New to SyncDoc?</span>
+            <Link href="/register" className="ml-2 text-primary hover:underline font-bold">Create an account</Link>
+          </p>
         </div>
       </div>
     </div>
