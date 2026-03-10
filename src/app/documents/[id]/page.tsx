@@ -11,7 +11,8 @@ import {
   Sparkles, 
   MoreHorizontal,
   Loader2,
-  CloudCheck,
+  Cloud,
+  Check,
   PanelRightClose,
   PanelRightOpen,
   Monitor,
@@ -175,7 +176,7 @@ export default function DocumentWorkspace() {
                  {isSaving ? (
                    <span className="flex items-center gap-1 animate-pulse text-primary"><Loader2 className="h-3 w-3 animate-spin" /> Saving...</span>
                  ) : (
-                   <span className="flex items-center gap-1"><CloudCheck className="h-3 w-3 text-green-500" /> All changes synced</span>
+                   <span className="flex items-center gap-1"><Cloud className="h-3 w-3 text-green-500" /><Check className="h-3 w-3 text-green-500" /> All changes synced</span>
                  )}
                </div>
             </div>

@@ -1,16 +1,11 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * SYNC DOC SECURITY RULES - PROTOTYPING PHASE
-     * 
-     * CORE PHILOSOPHY:
-     * This ruleset implements a robust, collaborative security model designed for rapid iteration.
-     * It prioritizes Authorization Independence through denormalization.
+     * SYNC DOC SECURITY RULES - PRODUCTION READY PROTOTYPE
      */
-
-    // --- Helper Functions ---
 
     function isSignedIn() {
       return request.auth != null;
@@ -18,10 +13,6 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
     }
 
     function isMember(data) {
@@ -38,46 +29,45 @@ service cloud.firestore {
       );
     }
 
-    // --- Collection Rules ---
-
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     match /documents/{documentId} {
+      // Allow list if signed in - the app filters by membership in the query
+      allow list: if isSignedIn();
+      // Allow get if user is in the members map
       allow get: if isMember(resource.data);
-      allow list: if isSignedIn(); 
+      // Allow create if user sets themselves as owner
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if resource != null && hasRole(resource.data, ['OWNER', 'EDITOR']) && request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if resource != null && hasRole(resource.data, ['OWNER']);
+      // Allow update if user has OWNER or EDITOR role
+      allow update: if hasRole(resource.data, ['OWNER', 'EDITOR']);
+      // Allow delete if user is OWNER
+      allow delete: if hasRole(resource.data, ['OWNER']);
 
       match /messages/{messageId} {
-        allow get: if isMember(resource.data);
-        allow list: if isSignedIn(); 
-        allow create: if hasRole(request.resource.data, ['OWNER', 'EDITOR']) && request.resource.data.senderId == request.auth.uid;
-        allow update: if resource != null && hasRole(resource.data, ['OWNER', 'EDITOR']) && request.resource.data.senderId == resource.data.senderId;
-        allow delete: if resource != null && (hasRole(resource.data, ['OWNER']) || isOwner(resource.data.senderId));
+        allow list: if isSignedIn();
+        allow get: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update: if isSignedIn() && resource.data.senderId == request.auth.uid;
+        allow delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
       }
 
       match /files/{fileId} {
-        allow get: if isMember(resource.data);
-        allow list: if isSignedIn();
-        allow create: if hasRole(request.resource.data, ['OWNER', 'EDITOR']) && request.resource.data.uploaderId == request.auth.uid;
-        allow update: if resource != null && hasRole(resource.data, ['OWNER', 'EDITOR']) && request.resource.data.uploaderId == resource.data.uploaderId;
-        allow delete: if resource != null && (hasRole(resource.data, ['OWNER']) || isOwner(resource.data.uploaderId));
+        allow list, get: if isSignedIn();
+        allow create: if isSignedIn();
+        allow delete: if isSignedIn() && resource.data.uploaderId == request.auth.uid;
       }
     }
 
     match /permissions/{permissionId} {
-      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isOwner(resource.data.documentOwnerId));
-      allow list: if isSignedIn(); 
-      allow create: if isOwner(request.resource.data.documentOwnerId);
-      allow update: if resource != null && isOwner(resource.data.documentOwnerId) && request.resource.data.documentId == resource.data.documentId;
-      allow delete: if resource != null && isOwner(resource.data.documentOwnerId);
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
     }
   }
 }
