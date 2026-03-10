@@ -39,9 +39,5 @@ service cloud.firestore {
         allow write: if isSignedIn() && request.auth.uid == userId;
       }
     }
-
-    match /permissions/{permissionId} {
-      allow read, write: if isSignedIn();
-    }
   }
 }

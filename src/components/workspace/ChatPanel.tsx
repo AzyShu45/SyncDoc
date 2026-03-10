@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Send, Paperclip, FileIcon, ImageIcon, X, Smile, MoreHorizontal, ShieldAlert } from "lucide-react"
+import { Send, Paperclip, FileIcon, ImageIcon, X, Smile, MoreHorizontal, ShieldAlert, Download, FileText } from "lucide-react"
 import { Message, Role } from "@/lib/types"
 import { format } from "date-fns"
 import { useUser } from "@/firebase"
@@ -43,7 +43,13 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
   const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file && canInteract) {
-      setSelectedFile(file)
+      // Check file types (Images and PDFs)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
+      if (allowedTypes.includes(file.type)) {
+        setSelectedFile(file)
+      } else {
+        alert("Only Images and PDF files are allowed.")
+      }
     }
   }
 
@@ -94,12 +100,37 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
                       </span>
                     </div>
                   )}
-                  <div className={`p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm transition-all hover:shadow-md ${
+                  <div className={`p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm transition-all hover:shadow-md space-y-2 ${
                     isMe 
                       ? 'bg-primary text-primary-foreground rounded-tr-none' 
                       : 'bg-muted/50 rounded-tl-none border'
                   }`}>
-                    {msg.text}
+                    {msg.text && <p>{msg.text}</p>}
+                    
+                    {msg.fileUrl && (
+                      <div className={`flex flex-col gap-2 p-2 rounded-xl bg-background/10 border border-white/10`}>
+                        {msg.fileName?.match(/\.(jpg|jpeg|png|gif)$/i) ? (
+                          <div className="relative group/img overflow-hidden rounded-lg">
+                            <img src={msg.fileUrl} alt={msg.fileName} className="max-h-48 w-full object-cover" />
+                            <a 
+                              href={msg.fileUrl} 
+                              download={msg.fileName}
+                              className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                            >
+                              <Download className="h-6 w-6 text-white" />
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 p-2">
+                            <FileText className="h-5 w-5 opacity-70" />
+                            <span className="text-xs font-bold truncate flex-1">{msg.fileName}</span>
+                            <a href={msg.fileUrl} download={msg.fileName}>
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -119,7 +150,7 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
             {selectedFile && (
               <div className="flex items-center gap-3 bg-primary/5 p-3 rounded-xl text-xs border border-primary/10 animate-in slide-in-from-bottom-2">
                 <div className="p-2 bg-white rounded-lg shadow-sm">
-                  <Paperclip className="h-3.5 w-3.5 text-primary" />
+                  {selectedFile.type.startsWith('image/') ? <ImageIcon className="h-3.5 w-3.5 text-primary" /> : <FileIcon className="h-3.5 w-3.5 text-primary" />}
                 </div>
                 <span className="truncate flex-1 font-bold">{selectedFile.name}</span>
                 <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => setSelectedFile(null)}>
@@ -146,7 +177,7 @@ export function ChatPanel({ messages, onSendMessage, userRole }: ChatPanelProps)
               </Button>
               <div className="flex-1 relative">
                 <Textarea
-                  placeholder="Share your thoughts..."
+                  placeholder={canInteract ? "Share your thoughts..." : "Read-only workspace"}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {

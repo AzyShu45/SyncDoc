@@ -33,6 +33,20 @@
         "photoURL": { "type": "string" },
         "lastActive": { "type": "string", "format": "date-time" }
       }
+    },
+    "Message": {
+      "title": "Message",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "documentId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -41,6 +55,7 @@
   "firestore": {
     "/users/{userId}": { "schema": { "$ref": "#/backend/entities/User" }, "description": "User profiles" },
     "/documents/{docId}": { "schema": { "$ref": "#/backend/entities/Document" }, "description": "Documents" },
-    "/documents/{docId}/presence/{userId}": { "schema": { "$ref": "#/backend/entities/Presence" }, "description": "Real-time presence" }
+    "/documents/{docId}/presence/{userId}": { "schema": { "$ref": "#/backend/entities/Presence" }, "description": "Real-time presence" },
+    "/documents/{docId}/messages/{messageId}": { "schema": { "$ref": "#/backend/entities/Message" }, "description": "Chat messages" }
   }
 }

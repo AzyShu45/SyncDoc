@@ -96,27 +96,43 @@ export default function DocumentWorkspace() {
 
   // Chat Subscription
   const messagesQuery = useMemoFirebase(() => {
-    if (!firestore || !id || !user) return null
+    if (!firestore || !id) return null
     return query(
       collection(firestore, "documents", id as string, "messages"),
-      orderBy("createdAt", "asc"),
+      orderBy("timestamp", "asc"),
       limit(100)
     )
-  }, [firestore, id, user?.uid])
+  }, [firestore, id])
   const { data: messagesData } = useCollection(messagesQuery)
 
   const role = (document?.members?.[user?.uid || ""] as Role) || 'VIEWER'
 
-  const handleSendMessage = (text: string) => {
-    if (!firestore || !user || !id || !document) return
+  const handleSendMessage = async (text: string, file?: File) => {
+    if (!firestore || !user || !id || !document || role === 'VIEWER') return
     const messagesRef = collection(firestore, "documents", id as string, "messages")
+    
+    let fileUrl = "";
+    let fileName = "";
+
+    if (file) {
+      // Simple file upload simulation for MVP
+      // In production, this would use Firebase Storage and return the download URL
+      fileName = file.name;
+      fileUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+    }
     
     addDocumentNonBlocking(messagesRef, {
       documentId: id,
-      senderId: user.uid,
+      userId: user.uid,
       userName: user.displayName || user.email?.split('@')[0] || "User",
-      content: text,
-      createdAt: serverTimestamp(),
+      text: text,
+      timestamp: serverTimestamp(),
+      fileUrl,
+      fileName
     })
   }
 
@@ -133,7 +149,7 @@ export default function DocumentWorkspace() {
         updatedAt: serverTimestamp()
       })
       setIsSaving(false)
-    }, 1000) // 1s throttle for character sync
+    }, 1000) 
   }
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,9 +317,11 @@ export default function DocumentWorkspace() {
               messages={(messagesData || []).map(m => ({
                 id: m.id,
                 userName: m.userName || "Unknown",
-                text: m.content || "",
-                timestamp: m.createdAt?.toDate() || new Date(),
-                userId: m.senderId
+                text: m.text || "",
+                timestamp: m.timestamp?.toDate() || new Date(),
+                userId: m.userId,
+                fileUrl: m.fileUrl,
+                fileName: m.fileName
               })) as any} 
               onSendMessage={handleSendMessage} 
               userRole={role}
