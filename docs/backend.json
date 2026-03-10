@@ -8,25 +8,31 @@
         "id": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
-        "photoURL": { "type": "string" }
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
       }
     },
     "Document": {
       "title": "Document",
       "type": "object",
+      "description": "Collaborative document with embedded RBAC members map.",
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
         "content": { "type": "string" },
         "ownerId": { "type": "string" },
-        "members": { "type": "object" },
+        "members": { 
+          "type": "object",
+          "description": "Map of userId to Role (OWNER | EDITOR | VIEWER)"
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
     "Presence": {
       "title": "Presence",
       "type": "object",
-      "description": "Represents a user's active presence in a specific document workspace.",
+      "description": "Real-time user status within a document workspace.",
       "properties": {
         "userId": { "type": "string" },
         "name": { "type": "string" },
@@ -55,7 +61,7 @@
   "firestore": {
     "/users/{userId}": { "schema": { "$ref": "#/backend/entities/User" }, "description": "User profiles" },
     "/documents/{docId}": { "schema": { "$ref": "#/backend/entities/Document" }, "description": "Documents" },
-    "/documents/{docId}/presence/{userId}": { "schema": { "$ref": "#/backend/entities/Presence" }, "description": "Real-time presence" },
-    "/documents/{docId}/messages/{messageId}": { "schema": { "$ref": "#/backend/entities/Message" }, "description": "Chat messages" }
+    "/documents/{docId}/presence/{userId}": { "schema": { "$ref": "#/backend/entities/Presence" }, "description": "Real-time presence heartbeats" },
+    "/documents/{docId}/messages/{messageId}": { "schema": { "$ref": "#/backend/entities/Message" }, "description": "Chat and file sharing history" }
   }
 }
