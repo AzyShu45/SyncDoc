@@ -10,12 +10,26 @@ import Link from "next/link"
 import { Document } from "@/lib/types"
 
 interface DocumentCardProps {
-  doc: Document
+  doc: any // Using any to safely handle Firestore Timestamp objects
   onDelete: (id: string) => void
   onShare: (id: string) => void
 }
 
 export function DocumentCard({ doc, onDelete, onShare }: DocumentCardProps) {
+  // Utility to safely convert Firestore Timestamp or string to a JS Date
+  const getSafeDate = (dateField: any) => {
+    if (!dateField) return new Date();
+    // Check if it's a Firestore Timestamp
+    if (typeof dateField.toDate === 'function') {
+      return dateField.toDate();
+    }
+    // Try standard date constructor
+    const d = new Date(dateField);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+
+  const updatedAt = getSafeDate(doc.updatedAt);
+
   return (
     <Card className="hover:shadow-md transition-shadow group relative bg-card">
       <Link href={`/documents/${doc.id}`} className="block">
@@ -25,9 +39,9 @@ export function DocumentCard({ doc, onDelete, onShare }: DocumentCardProps) {
               <FileText className="h-6 w-6 text-primary" />
             </div>
           </div>
-          <CardTitle className="mt-4 truncate text-lg font-headline">{doc.title}</CardTitle>
+          <CardTitle className="mt-4 truncate text-lg font-headline">{doc.title || "Untitled Document"}</CardTitle>
           <CardDescription className="text-xs">
-            Modified {formatDistanceToNow(new Date(doc.updatedAt))} ago
+            Modified {formatDistanceToNow(updatedAt)} ago
           </CardDescription>
         </CardHeader>
       </Link>

@@ -27,7 +27,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState(false)
 
-  // Proper redirect handling
+  // Navigate to dashboard if already logged in
   useEffect(() => {
     if (!isUserLoading && user) {
       router.push("/dashboard")
@@ -41,7 +41,6 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      // Redirection handled by useEffect
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -57,6 +56,7 @@ export default function LoginPage() {
     setSocialLoading(true)
     try {
       const provider = new GoogleAuthProvider()
+      // Always prompt to select account to handle multiple logged-in users
       provider.setCustomParameters({
         prompt: 'select_account'
       })
@@ -77,8 +77,6 @@ export default function LoginPage() {
           updatedAt: serverTimestamp(),
         }, { merge: true })
       }
-      
-      // Redirection handled by useEffect
     } catch (error: any) {
       console.error("Google Login Error:", error)
       toast({
@@ -101,7 +99,6 @@ export default function LoginPage() {
     )
   }
 
-  // Defensively return a loader while redirecting if user is already found
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
